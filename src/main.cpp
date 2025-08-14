@@ -17,7 +17,7 @@
 const char *HOST = "raspberry.local";
 int PORT = 8010;
 Preferences preferences;
-Automata automata("Battery Main", HOST, PORT);
+Automata automata("KNOB", HOST, PORT);
 long d = 8000;
 long st = millis();
 unsigned long startMillis;
@@ -25,13 +25,9 @@ int ch = millis();
 long start = millis();
 JsonDocument doc;
 static const char *TAG = "encoder";
-#ifndef SENSOR_SDA
-#define SENSOR_SDA 11
-#endif
 
-#ifndef SENSOR_SCL
+#define SENSOR_SDA 11
 #define SENSOR_SCL 12
-#endif
 
 SensorDRV2605 drv;
 
@@ -83,7 +79,7 @@ static knob_handle_t s_knob = 0;
 int encPos = 0;
 SemaphoreHandle_t mutex;
 
-byte value[4] = {50, 25, 25, 25}; // values of each meter 0= power, 1 =green , 2 red, 3 blue
+byte value[4] = {0, 0, 0, 0}; // values of each meter 0= power, 1 =green , 2 red, 3 blue
 int chosen = 0;
 void set_active_meter(int index)
 {
@@ -148,6 +144,10 @@ void meter4_event_cb(lv_event_t *e)
     chosen = 3;
     set_active_meter(chosen);
   }
+}
+
+static void anim_set_meter_value(void *obj, int32_t v) {
+    lv_meter_set_indicator_value(meter, needle, v);
 }
 void lv_example_meter_1(void)
 {
@@ -336,12 +336,13 @@ static void _knob_right_cb(void *arg, void *data)
 
 bool shoot = false;
 int pos = -96;
+
 static void user_encoder_loop_task(void *arg)
 {
 
   for (;;)
   {
-    EventBits_t even = xEventGroupWaitBits(knob_even_, BIT_EVEN_ALL, pdTRUE, pdFALSE, pdMS_TO_TICKS(5000)); // 等待WIFI 连接成功
+    EventBits_t even = xEventGroupWaitBits(knob_even_, BIT_EVEN_ALL, pdTRUE, pdFALSE, pdMS_TO_TICKS(50));
     if (READ_BIT(even, 0))
     {
       if (xSemaphoreTake(mutex, portMAX_DELAY))
@@ -353,7 +354,10 @@ static void user_encoder_loop_task(void *arg)
         myData.red = map(value[2], 0, 100, 0, 255);
         myData.blue = map(value[3], 0, 100, 0, 255);
         myData.green = map(value[1], 0, 100, 0, 255);
+        drv.setWaveform(0, 47);
+        drv.setWaveform(1, 0);
 
+        drv.run();
         encPos = value[chosen];
 
         xSemaphoreGive(mutex);
@@ -371,12 +375,17 @@ static void user_encoder_loop_task(void *arg)
         myData.blue = map(value[3], 0, 100, 0, 255);
         myData.green = map(value[1], 0, 100, 0, 255);
         encPos = value[chosen];
+        drv.setWaveform(0, 47);
+        drv.setWaveform(1, 0);
 
+        drv.run();
         xSemaphoreGive(mutex);
       }
     }
+    vTaskDelay(10);
   }
 }
+
 
 static void example_lvgl_port_task(void *arg)
 {
@@ -412,19 +421,71 @@ static void example_lvgl_port_task(void *arg)
     vTaskDelay(pdMS_TO_TICKS(1));
   }
 }
+
+void initVib()
+{
+  Wire.begin(SENSOR_SDA, SENSOR_SCL, 400000);
+  if (!drv.begin(Wire))
+  {
+    Serial.println("Failed to find DRV2605 - check your wiring!");
+    while (1)
+    {
+      Serial.println("Failed to find DRV2605 - check your wiring!");
+      delay(1000);
+    }
+  }
+  drv.selectLibrary(1);
+
+  // I2C trigger by sending 'run' command
+  // default, internal trigger when sending RUN command
+  drv.setMode(SensorDRV2605::MODE_INTTRIG);
+  Serial.println("Init DRV2605 Sensor success!");
+  drv.setWaveform(0, 47);
+  drv.setWaveform(1, 0);
+  drv.run();
+  delay(1000);
+}
+
+void show_startup_message(const char* msg) {
+    // Create a label on the active screen
+    lv_obj_t *label = lv_label_create(lv_scr_act());
+    lv_label_set_text(label, msg);
+    lv_obj_center(label); // center it on the screen
+    lv_task_handler();    // refresh LVGL to display immediately
+    delay(2000);          // keep message visible for 2 seconds
+    lv_obj_del(label);    // remove it after
+}
+
 void setup()
 {
   mutex = xSemaphoreCreateMutex();
   Serial.begin(115200);
+  delay(2000);
+  initVib();
   Touch_Init();
   lcd_lvgl_Init();
+  show_startup_message("Starting...");
   lv_example_meter_1();
   lv_example_meter_2();
   lv_example_meter_3();
   lv_example_meter_4();
-
+  Serial.println("starting");
   set_active_meter(chosen);
-  lcd_bl_pwm_bsp_init(40); // brightness up to 255
+  lcd_bl_pwm_bsp_init(150); // brightness up to 255
+
+  preferences.begin("bat", false);
+  automata.begin();
+  automata.addAttribute("encoder1", "Encoder 1", "", "DATA|MAIN");
+  automata.addAttribute("encoder2", "Encoder 2", "", "DATA|MAIN");
+  automata.addAttribute("encoder3", "Encoder 3", "", "DATA|MAIN");
+  automata.addAttribute("encoder4", "Encoder 4", "", "DATA|MAIN");
+  automata.addAttribute("chosen", "Chosen", "", "DATA|MAIN");
+  automata.addAttribute("action", "Action", "", "ACTION|IN");
+  // automata.addAttribute("upTime", "Up Time", "Hours", "DATA|MAIN");
+
+  automata.registerDevice();
+  automata.onActionReceived(action);
+  automata.delayedUpdate(sendData);
 
   knob_even_ = xEventGroupCreate();
   // create knob
@@ -439,58 +500,25 @@ void setup()
   iot_knob_register_cb(s_knob, KNOB_RIGHT, _knob_right_cb, NULL);
   xTaskCreate(user_encoder_loop_task, "user_encoder_loop_task", 3000, NULL, 2, NULL);
   xTaskCreate(example_lvgl_port_task, "LVGL", EXAMPLE_LVGL_TASK_STACK_SIZE, NULL, EXAMPLE_LVGL_TASK_PRIORITY, NULL);
-  if (!drv.begin(Wire, SENSOR_SDA, SENSOR_SCL))
-  {
-    Serial.println("Failed to find DRV2605 - check your wiring!");
-    while (1)
-    {
-      delay(1000);
-    }
-  }
-  Serial.println("Init DRV2605 Sensor success!");
-
-  drv.selectLibrary(1);
-
-  // I2C trigger by sending 'run' command
-  // default, internal trigger when sending RUN command
-  drv.setMode(SensorDRV2605::MODE_INTTRIG);
-
-  preferences.begin("bat", false);
-  automata.begin();
-  automata.addAttribute("encoder", "Encoder", "", "ACTION|SWITCH");
-  automata.addAttribute("action", "Action", "", "ACTION|SWITCH");
-  // automata.addAttribute("upTime", "Up Time", "Hours", "DATA|MAIN");
-
-  automata.registerDevice();
-  automata.onActionReceived(action);
-  automata.delayedUpdate(sendData);
-
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(500);
-    Serial.print(".");
-  }
 }
 
 void loop()
 {
-  doc["encoder"] = encPos;
+  doc["encoder1"] = myData.power;
+  doc["encoder2"] = myData.green;
+  doc["encoder3"] = myData.blue;
+  doc["encoder4"] = myData.red;
+  doc["chosen"] = chosen;
+  Serial.println("loop");
+  automata.loop();
 
-  if ((millis() - start) > 1000)
-  {
+  automata.sendLive(doc);
+  start = millis();
+  drv.setWaveform(0, 47);
+  drv.setWaveform(1, 0); // end waveform
 
-    automata.sendLive(doc);
-    start = millis();
-  }
-  // set the effect to play
-  drv.setWaveform(0, effect); // play effect
-  drv.setWaveform(1, 0);      // end waveform
-
-  // play the effect!
   drv.run();
-
-  // wait a bit
-  delay(500);
+  vTaskDelay(1);
 
   effect++;
   if (effect > 117)

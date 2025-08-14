@@ -69,11 +69,11 @@ esp_err_t esp_lcd_new_panel_sh8601(const esp_lcd_panel_io_handle_t io, const esp
         ESP_GOTO_ON_ERROR(gpio_config(&io_conf), err, TAG, "configure GPIO for RST line failed");
     }
 
-    switch (panel_dev_config->color_space) {
-    case ESP_LCD_COLOR_SPACE_RGB:
+    switch (panel_dev_config->rgb_ele_order) {
+    case LCD_RGB_ELEMENT_ORDER_RGB:
         sh8601->madctl_val = 0;
         break;
-    case ESP_LCD_COLOR_SPACE_BGR:
+    case LCD_RGB_ELEMENT_ORDER_BGR:
         sh8601->madctl_val |= LCD_CMD_BGR_BIT;
         break;
     default:
@@ -119,7 +119,7 @@ esp_err_t esp_lcd_new_panel_sh8601(const esp_lcd_panel_io_handle_t io, const esp
     sh8601->base.set_gap = panel_sh8601_set_gap;
     sh8601->base.mirror = panel_sh8601_mirror;
     sh8601->base.swap_xy = panel_sh8601_swap_xy;
-    sh8601->base.disp_off = panel_sh8601_disp_on_off;
+    sh8601->base.disp_on_off = panel_sh8601_disp_on_off;
     *ret_panel = &(sh8601->base);
     ESP_LOGD(TAG, "new sh8601 panel @%p", sh8601);
 

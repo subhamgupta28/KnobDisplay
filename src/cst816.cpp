@@ -2,7 +2,7 @@
 #include "esp_err.h"
 #include "lcd_config.h"
 
-#define TEST_I2C_PORT I2C_NUM_0
+#define TEST_I2C_PORT I2C_NUM_1
 
 uint8_t I2C_writr_buff(uint8_t addr,uint8_t reg,uint8_t *buf,uint8_t len)
 {
