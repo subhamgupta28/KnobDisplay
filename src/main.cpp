@@ -1,9 +1,9 @@
-#include "lcd_bsp.h"
-#include "cst816.h"
-#include "lcd_bl_pwm_bsp.h"
-#include "lcd_config.h"
+#include "lcd/lcd_bsp.h"
+#include "lcd/cst816.h"
+#include "lcd/lcd_bl_pwm_bsp.h"
+#include "lcd/lcd_config.h"
 #include "ui.h"
-#include "bidi_switch_knob.h"
+#include "lcd/bidi_switch_knob.h"
 #include "Automata.h"
 #include "ArduinoJson.h"
 #include <WiFi.h>
@@ -11,7 +11,8 @@
 #include <SPI.h>
 #include <Arduino.h>
 #include "SensorDRV2605.hpp"
-// const char* HOST = "192.168.29.67";
+#include <time.h>
+// const char* HOST = "192.168.1.7";
 // int PORT = 8080;
 
 const char *HOST = "raspberry.local";
@@ -43,6 +44,7 @@ static lv_obj_t *meter3;
 lv_meter_indicator_t *needle3;
 
 static lv_obj_t *meter4;
+static lv_obj_t *meter5;
 lv_meter_indicator_t *needle4;
 
 typedef struct struct_message
@@ -74,12 +76,155 @@ void sendData()
   automata.sendData(doc);
 }
 EventGroupHandle_t knob_even_ = NULL;
-
+int selectedScreen = 1;
 static knob_handle_t s_knob = 0;
 int encPos = 0;
 SemaphoreHandle_t mutex;
+int actionNum = 0;
+bool actionSend = false;
+String selectedAutomation = "";
 
-byte value[4] = {0, 0, 0, 0}; // values of each meter 0= power, 1 =green , 2 red, 3 blue
+static lv_obj_t *clock_meter;
+static lv_meter_indicator_t *hour_hand;
+static lv_meter_indicator_t *minute_hand;
+static lv_meter_indicator_t *second_hand;
+
+/* Timer callback to update clock every second */
+static void clock_update_cb(lv_timer_t *timer)
+{
+  time_t now = time(NULL);
+  struct tm *t = localtime(&now);
+
+  int hour = t->tm_hour % 12;
+  int minute = t->tm_min;
+  int second = t->tm_sec;
+
+  // Convert to degrees:
+  // Scale is 0..59 mapped to 360°
+  int hour_value = (hour * 5) + (minute / 12); // every hour = 5 ticks
+  int minute_value = minute;
+  int second_value = second;
+
+  lv_meter_set_indicator_value(clock_meter, hour_hand, hour_value);
+  lv_meter_set_indicator_value(clock_meter, minute_hand, minute_value);
+  lv_meter_set_indicator_value(clock_meter, second_hand, second_value);
+}
+
+void lv_example_clock(void)
+{
+  extern lv_obj_t *ui_Screen5;
+  clock_meter = lv_meter_create(ui_Screen5);
+  lv_obj_set_size(clock_meter, 360, 360);
+  lv_obj_center(clock_meter);
+  lv_obj_set_style_bg_opa(clock_meter, LV_OPA_TRANSP, LV_PART_MAIN);
+  lv_obj_set_style_border_width(clock_meter, 0, LV_PART_MAIN);
+
+  /* Add scale: 0..59 (like minutes/seconds) */
+  lv_meter_scale_t *scale = lv_meter_add_scale(clock_meter);
+  lv_meter_set_scale_range(clock_meter, scale, 0, 59, 360, 270);
+  lv_meter_set_scale_ticks(clock_meter, scale, 61, 2, 15, lv_palette_main(LV_PALETTE_GREY));
+  lv_meter_set_scale_major_ticks(clock_meter, scale, 5, 4, 25, lv_color_hex(0xF5F527), 15);
+  lv_obj_set_style_text_opa(clock_meter, LV_OPA_TRANSP, LV_PART_TICKS);
+  hour_hand = lv_meter_add_needle_line(clock_meter, scale, 8, lv_color_hex(0xF5F527), -100);
+  minute_hand = lv_meter_add_needle_line(clock_meter, scale, 5, lv_color_hex(0xFFFFFF), -60);
+  second_hand = lv_meter_add_needle_line(clock_meter, scale, 2, lv_palette_main(LV_PALETTE_RED), -40);
+
+  /* Start updating every 1000 ms */
+  lv_timer_create(clock_update_cb, 1000, NULL);
+
+  /* Initial update */
+  clock_update_cb(NULL);
+}
+
+void sendAction1Click(lv_event_t *e)
+{
+  // Your code here
+  actionNum = 1;
+  actionSend = true;
+}
+void sendAction2Click(lv_event_t *e)
+{
+  // Your code here
+  actionNum = 2;
+  actionSend = true;
+}
+void sendAction4Click(lv_event_t *e)
+{
+  actionNum = 4;
+  actionSend = true;
+}
+void sendAction9Click(lv_event_t *e)
+{
+  actionNum = 9;
+  actionSend = true;
+}
+void sendAction8Click(lv_event_t *e)
+{
+  actionNum = 8;
+  actionSend = true;
+}
+void sendAction7Click(lv_event_t *e)
+{
+  actionNum = 7;
+  actionSend = true;
+}
+void sendAction3Click(lv_event_t *e)
+{
+  actionNum = 3;
+  actionSend = true;
+}
+void sendOptionSelect(lv_event_t *e)
+{
+  // Get the object that triggered the event
+  lv_obj_t *dropdown = lv_event_get_target(e);
+
+  // Get the selected option index
+  uint16_t selected = lv_dropdown_get_selected(dropdown);
+
+  // Get the selected option text
+  char buf[64];
+  lv_dropdown_get_selected_str(dropdown, buf, sizeof(buf));
+
+  Serial.println(selected);
+  Serial.println(buf);
+  selectedAutomation = String(buf);
+  lv_label_set_text(ui_Label26, String(selectedAutomation).c_str());
+}
+void runbtnClick(lv_event_t *e)
+{
+  JsonDocument doc;
+  doc["id"] = automata.getAutomationId(selectedAutomation);
+  doc["key"] = "id";
+  doc["automation"] = true;
+
+  automata.sendAction(doc);
+  lv_label_set_text(ui_Label19, String("Command Sent").c_str());
+}
+void sendAction6Click(lv_event_t *e)
+{
+  actionNum = 6;
+  actionSend = true;
+}
+void sendAction5Click(lv_event_t *e)
+{
+  actionNum = 5;
+  actionSend = true;
+}
+void vibrateStrong2Sec()
+{
+  // Select a strong continuous buzz effect
+  for (int i = 0; i < 10; i++)
+  {
+    drv.setWaveform(0, 118); // Long buzz (100%) effect
+    drv.setWaveform(1, 0);   // End waveform
+
+    drv.run(); // Start vibration
+    vTaskDelay(pdMS_TO_TICKS(200));
+
+    drv.stop(); // Stop the vibration
+  }
+}
+byte value[4] = {25, 25, 25, 25}; // values of each meter 0= power, 1 =green , 2 red, 3 blue
 int chosen = 0;
 void set_active_meter(int index)
 {
@@ -94,19 +239,19 @@ void set_active_meter(int index)
   {
   case 0:
     lv_obj_set_style_border_width(meter, 2, LV_PART_MAIN);
-    lv_obj_set_style_border_color(meter, lv_color_hex(0x574509), LV_PART_MAIN);
+    lv_obj_set_style_border_color(meter, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
     break;
   case 1:
     lv_obj_set_style_border_width(meter2, 2, LV_PART_MAIN);
-    lv_obj_set_style_border_color(meter2, lv_color_hex(0x574509), LV_PART_MAIN);
+    lv_obj_set_style_border_color(meter2, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
     break;
   case 3:
     lv_obj_set_style_border_width(meter4, 2, LV_PART_MAIN);
-    lv_obj_set_style_border_color(meter4, lv_color_hex(0X574509), LV_PART_MAIN);
+    lv_obj_set_style_border_color(meter4, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
     break;
   case 2:
     lv_obj_set_style_border_width(meter3, 2, LV_PART_MAIN);
-    lv_obj_set_style_border_color(meter3, lv_color_hex(0x574509), LV_PART_MAIN);
+    lv_obj_set_style_border_color(meter3, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
     break;
   }
 }
@@ -118,7 +263,6 @@ void meter_event_cb(lv_event_t *e)
     set_active_meter(chosen);
   }
 }
-
 void meter2_event_cb(lv_event_t *e)
 {
   if (lv_event_get_code(e) == LV_EVENT_CLICKED)
@@ -127,7 +271,6 @@ void meter2_event_cb(lv_event_t *e)
     set_active_meter(chosen);
   }
 }
-
 void meter3_event_cb(lv_event_t *e)
 {
   if (lv_event_get_code(e) == LV_EVENT_CLICKED)
@@ -136,7 +279,6 @@ void meter3_event_cb(lv_event_t *e)
     set_active_meter(chosen);
   }
 }
-
 void meter4_event_cb(lv_event_t *e)
 {
   if (lv_event_get_code(e) == LV_EVENT_CLICKED)
@@ -146,8 +288,23 @@ void meter4_event_cb(lv_event_t *e)
   }
 }
 
-static void anim_set_meter_value(void *obj, int32_t v) {
-    lv_meter_set_indicator_value(meter, needle, v);
+void selectedScreen1_cb(lv_event_t *e)
+{
+  selectedScreen = 1;
+}
+
+void selectedScreen2_cb(lv_event_t *e)
+{
+  selectedScreen = 2;
+}
+
+void selectedScreen4_cb(lv_event_t *e)
+{
+  selectedScreen = 4;
+}
+static void anim_set_meter_value(void *obj, int32_t v)
+{
+  lv_meter_set_indicator_value(meter, needle, v);
 }
 void lv_example_meter_1(void)
 {
@@ -169,24 +326,24 @@ void lv_example_meter_1(void)
   lv_meter_indicator_t *indic;
 
   /*Add a blue arc to the start*/
-  indic = lv_meter_add_arc(meter, scale, 3, lv_palette_main(LV_PALETTE_BLUE), 0);
-  lv_meter_set_indicator_start_value(meter, indic, 0);
-  lv_meter_set_indicator_end_value(meter, indic, 20);
+  // indic = lv_meter_add_arc(meter, scale, 3, lv_palette_main(LV_PALETTE_LIME), 0);
+  // lv_meter_set_indicator_start_value(meter, indic, 0);
+  // lv_meter_set_indicator_end_value(meter, indic, 20);
 
-  /*Make the tick lines blue at the start of the scale*/
-  indic = lv_meter_add_scale_lines(meter, scale, lv_palette_main(LV_PALETTE_BLUE), lv_palette_main(LV_PALETTE_BLUE), false, 0);
-  lv_meter_set_indicator_start_value(meter, indic, 0);
-  lv_meter_set_indicator_end_value(meter, indic, 20);
+  // /*Make the tick lines blue at the start of the scale*/
+  // indic = lv_meter_add_scale_lines(meter, scale, lv_palette_main(LV_PALETTE_LIME), lv_palette_main(LV_PALETTE_LIME), false, 0);
+  // lv_meter_set_indicator_start_value(meter, indic, 0);
+  // lv_meter_set_indicator_end_value(meter, indic, 20);
 
-  /*Add a red arc to the end*/
-  indic = lv_meter_add_arc(meter, scale, 3, lv_palette_main(LV_PALETTE_RED), 0);
-  lv_meter_set_indicator_start_value(meter, indic, 80);
-  lv_meter_set_indicator_end_value(meter, indic, 100);
+  // /*Add a red arc to the end*/
+  // indic = lv_meter_add_arc(meter, scale, 3, lv_palette_main(LV_PALETTE_RED), 0);
+  // lv_meter_set_indicator_start_value(meter, indic, 80);
+  // lv_meter_set_indicator_end_value(meter, indic, 100);
 
-  /*Make the tick lines red at the end of the scale*/
-  indic = lv_meter_add_scale_lines(meter, scale, lv_palette_main(LV_PALETTE_RED), lv_palette_main(LV_PALETTE_RED), false, 0);
-  lv_meter_set_indicator_start_value(meter, indic, 80);
-  lv_meter_set_indicator_end_value(meter, indic, 100);
+  // /*Make the tick lines red at the end of the scale*/
+  // indic = lv_meter_add_scale_lines(meter, scale, lv_palette_main(LV_PALETTE_RED), lv_palette_main(LV_PALETTE_RED), false, 0);
+  // lv_meter_set_indicator_start_value(meter, indic, 80);
+  // lv_meter_set_indicator_end_value(meter, indic, 100);
 
   /*Add a needle line indicator*/
   needle = lv_meter_add_needle_line(meter, scale, 4, lv_color_hex(0xFFFFFF), -10);
@@ -212,24 +369,24 @@ void lv_example_meter_2(void)
   lv_meter_indicator_t *indic;
 
   /*Add a blue arc to the start*/
-  indic = lv_meter_add_arc(meter2, scale, 3, lv_palette_main(LV_PALETTE_BLUE), 0);
-  lv_meter_set_indicator_start_value(meter2, indic, 0);
-  lv_meter_set_indicator_end_value(meter2, indic, 20);
+  // indic = lv_meter_add_arc(meter2, scale, 3, lv_palette_main(LV_PALETTE_LIME), 0);
+  // lv_meter_set_indicator_start_value(meter2, indic, 0);
+  // lv_meter_set_indicator_end_value(meter2, indic, 20);
 
-  /*Make the tick lines blue at the start of the scale*/
-  indic = lv_meter_add_scale_lines(meter2, scale, lv_palette_main(LV_PALETTE_BLUE), lv_palette_main(LV_PALETTE_BLUE), false, 0);
-  lv_meter_set_indicator_start_value(meter2, indic, 0);
-  lv_meter_set_indicator_end_value(meter2, indic, 20);
+  // /*Make the tick lines blue at the start of the scale*/
+  // indic = lv_meter_add_scale_lines(meter2, scale, lv_palette_main(LV_PALETTE_LIME), lv_palette_main(LV_PALETTE_LIME), false, 0);
+  // lv_meter_set_indicator_start_value(meter2, indic, 0);
+  // lv_meter_set_indicator_end_value(meter2, indic, 20);
 
-  /*Add a red arc to the end*/
-  indic = lv_meter_add_arc(meter2, scale, 3, lv_palette_main(LV_PALETTE_RED), 0);
-  lv_meter_set_indicator_start_value(meter2, indic, 80);
-  lv_meter_set_indicator_end_value(meter2, indic, 100);
+  // /*Add a red arc to the end*/
+  // indic = lv_meter_add_arc(meter2, scale, 3, lv_palette_main(LV_PALETTE_RED), 0);
+  // lv_meter_set_indicator_start_value(meter2, indic, 80);
+  // lv_meter_set_indicator_end_value(meter2, indic, 100);
 
-  /*Make the tick lines red at the end of the scale*/
-  indic = lv_meter_add_scale_lines(meter2, scale, lv_palette_main(LV_PALETTE_RED), lv_palette_main(LV_PALETTE_RED), false, 0);
-  lv_meter_set_indicator_start_value(meter2, indic, 80);
-  lv_meter_set_indicator_end_value(meter2, indic, 100);
+  // /*Make the tick lines red at the end of the scale*/
+  // indic = lv_meter_add_scale_lines(meter2, scale, lv_palette_main(LV_PALETTE_RED), lv_palette_main(LV_PALETTE_RED), false, 0);
+  // lv_meter_set_indicator_start_value(meter2, indic, 80);
+  // lv_meter_set_indicator_end_value(meter2, indic, 100);
 
   /*Add a needle line indicator*/
   needle2 = lv_meter_add_needle_line(meter2, scale, 3, lv_color_hex(0xFFFFFF), -10);
@@ -255,24 +412,24 @@ void lv_example_meter_3(void)
   lv_meter_indicator_t *indic;
 
   /*Add a blue arc to the start*/
-  indic = lv_meter_add_arc(meter3, scale, 3, lv_palette_main(LV_PALETTE_BLUE), 0);
-  lv_meter_set_indicator_start_value(meter3, indic, 0);
-  lv_meter_set_indicator_end_value(meter3, indic, 20);
+  // indic = lv_meter_add_arc(meter3, scale, 3, lv_palette_main(LV_PALETTE_LIME), 0);
+  // lv_meter_set_indicator_start_value(meter3, indic, 0);
+  // lv_meter_set_indicator_end_value(meter3, indic, 20);
 
-  /*Make the tick lines blue at the start of the scale*/
-  indic = lv_meter_add_scale_lines(meter3, scale, lv_palette_main(LV_PALETTE_BLUE), lv_palette_main(LV_PALETTE_BLUE), false, 0);
-  lv_meter_set_indicator_start_value(meter3, indic, 0);
-  lv_meter_set_indicator_end_value(meter3, indic, 20);
+  // /*Make the tick lines blue at the start of the scale*/
+  // indic = lv_meter_add_scale_lines(meter3, scale, lv_palette_main(LV_PALETTE_LIME), lv_palette_main(LV_PALETTE_LIME), false, 0);
+  // lv_meter_set_indicator_start_value(meter3, indic, 0);
+  // lv_meter_set_indicator_end_value(meter3, indic, 20);
 
-  /*Add a red arc to the end*/
-  indic = lv_meter_add_arc(meter3, scale, 3, lv_palette_main(LV_PALETTE_RED), 0);
-  lv_meter_set_indicator_start_value(meter3, indic, 80);
-  lv_meter_set_indicator_end_value(meter3, indic, 100);
+  // /*Add a red arc to the end*/
+  // indic = lv_meter_add_arc(meter3, scale, 3, lv_palette_main(LV_PALETTE_RED), 0);
+  // lv_meter_set_indicator_start_value(meter3, indic, 80);
+  // lv_meter_set_indicator_end_value(meter3, indic, 100);
 
-  /*Make the tick lines red at the end of the scale*/
-  indic = lv_meter_add_scale_lines(meter3, scale, lv_palette_main(LV_PALETTE_RED), lv_palette_main(LV_PALETTE_RED), false, 0);
-  lv_meter_set_indicator_start_value(meter3, indic, 80);
-  lv_meter_set_indicator_end_value(meter3, indic, 100);
+  // /*Make the tick lines red at the end of the scale*/
+  // indic = lv_meter_add_scale_lines(meter3, scale, lv_palette_main(LV_PALETTE_RED), lv_palette_main(LV_PALETTE_RED), false, 0);
+  // lv_meter_set_indicator_start_value(meter3, indic, 80);
+  // lv_meter_set_indicator_end_value(meter3, indic, 100);
 
   /*Add a needle line indicator*/
   needle3 = lv_meter_add_needle_line(meter3, scale, 3, lv_color_hex(0xFFFFFF), -10);
@@ -298,27 +455,45 @@ void lv_example_meter_4(void)
   lv_meter_indicator_t *indic;
 
   /*Add a blue arc to the start*/
-  indic = lv_meter_add_arc(meter4, scale, 3, lv_palette_main(LV_PALETTE_BLUE), 0);
-  lv_meter_set_indicator_start_value(meter4, indic, 0);
-  lv_meter_set_indicator_end_value(meter4, indic, 20);
+  // indic = lv_meter_add_arc(meter4, scale, 3, lv_palette_main(LV_PALETTE_LIME), 0);
+  // lv_meter_set_indicator_start_value(meter4, indic, 0);
+  // lv_meter_set_indicator_end_value(meter4, indic, 20);
 
-  /*Make the tick lines blue at the start of the scale*/
-  indic = lv_meter_add_scale_lines(meter4, scale, lv_palette_main(LV_PALETTE_BLUE), lv_palette_main(LV_PALETTE_BLUE), false, 0);
-  lv_meter_set_indicator_start_value(meter4, indic, 0);
-  lv_meter_set_indicator_end_value(meter4, indic, 20);
+  // /*Make the tick lines blue at the start of the scale*/
+  // indic = lv_meter_add_scale_lines(meter4, scale, lv_palette_main(LV_PALETTE_LIME), lv_palette_main(LV_PALETTE_LIME), false, 0);
+  // lv_meter_set_indicator_start_value(meter4, indic, 0);
+  // lv_meter_set_indicator_end_value(meter4, indic, 20);
 
-  /*Add a red arc to the end*/
-  indic = lv_meter_add_arc(meter4, scale, 3, lv_palette_main(LV_PALETTE_RED), 0);
-  lv_meter_set_indicator_start_value(meter4, indic, 80);
-  lv_meter_set_indicator_end_value(meter4, indic, 100);
+  // /*Add a red arc to the end*/
+  // indic = lv_meter_add_arc(meter4, scale, 3, lv_palette_main(LV_PALETTE_RED), 0);
+  // lv_meter_set_indicator_start_value(meter4, indic, 80);
+  // lv_meter_set_indicator_end_value(meter4, indic, 100);
 
-  /*Make the tick lines red at the end of the scale*/
-  indic = lv_meter_add_scale_lines(meter4, scale, lv_palette_main(LV_PALETTE_RED), lv_palette_main(LV_PALETTE_RED), false, 0);
-  lv_meter_set_indicator_start_value(meter4, indic, 80);
-  lv_meter_set_indicator_end_value(meter4, indic, 100);
+  // /*Make the tick lines red at the end of the scale*/
+  // indic = lv_meter_add_scale_lines(meter4, scale, lv_palette_main(LV_PALETTE_RED), lv_palette_main(LV_PALETTE_RED), false, 0);
+  // lv_meter_set_indicator_start_value(meter4, indic, 80);
+  // lv_meter_set_indicator_end_value(meter4, indic, 100);
 
   /*Add a needle line indicator*/
   needle4 = lv_meter_add_needle_line(meter4, scale, 3, lv_color_hex(0xFFFFFF), -10);
+}
+
+void add_dropdown_options(const char *new_data)
+{
+  // Convert server response (comma-separated) → newline-separated
+  static char buffer[256];
+  int j = 0;
+  for (int i = 0; new_data[i] != '\0'; i++)
+  {
+    if (new_data[i] == ',')
+      buffer[j++] = '\n';
+    else
+      buffer[j++] = new_data[i];
+  }
+  buffer[j] = '\0';
+
+  // Update dropdown options
+  lv_dropdown_set_options(ui_Dropdown1, buffer);
 }
 
 static void _knob_left_cb(void *arg, void *data)
@@ -354,14 +529,19 @@ static void user_encoder_loop_task(void *arg)
         myData.red = map(value[2], 0, 100, 0, 255);
         myData.blue = map(value[3], 0, 100, 0, 255);
         myData.green = map(value[1], 0, 100, 0, 255);
-        drv.setWaveform(0, 47);
-        drv.setWaveform(1, 0);
 
-        drv.run();
         encPos = value[chosen];
+
+        // doc["encoder1"] = myData.power;
+        // doc["encoder2"] = myData.green;
+        // doc["encoder3"] = myData.blue;
+        // doc["encoder4"] = myData.red;
+        // doc["chosen"] = chosen;
+        // automata.sendLive(doc);
 
         xSemaphoreGive(mutex);
       }
+      // vibrateStrong2Sec();
     }
     if (READ_BIT(even, 1))
     {
@@ -375,17 +555,20 @@ static void user_encoder_loop_task(void *arg)
         myData.blue = map(value[3], 0, 100, 0, 255);
         myData.green = map(value[1], 0, 100, 0, 255);
         encPos = value[chosen];
-        drv.setWaveform(0, 47);
-        drv.setWaveform(1, 0);
+        // doc["encoder1"] = myData.power;
+        // doc["encoder2"] = myData.green;
+        // doc["encoder3"] = myData.blue;
+        // doc["encoder4"] = myData.red;
+        // doc["chosen"] = chosen;
+        // automata.sendLive(doc);
 
-        drv.run();
         xSemaphoreGive(mutex);
       }
+      // vibrateStrong2Sec();
     }
-    vTaskDelay(10);
+    vTaskDelay(100);
   }
 }
-
 
 static void example_lvgl_port_task(void *arg)
 {
@@ -413,6 +596,18 @@ static void example_lvgl_port_task(void *arg)
       lv_meter_set_indicator_value(meter4, needle4, value[3]);
       lv_arc_set_value(ui_Arc4, value[3]);
 
+      // lv_label_set_text(ui_power2, String(value[3]).c_str());
+      // lv_meter_set_indicator_value(meter5, needle4, value[3]);
+
+      lv_label_set_text(ui_Label25, String(encPos).c_str());
+      lv_arc_set_value(ui_Arc5, encPos);
+
+      if ((millis() - st) > 60000)
+      {
+        add_dropdown_options(automata.getAutomations().c_str());
+        st = millis();
+        // Start vibration
+      }
       lv_color_t color = lv_color_make(map(value[2], 0, 100, 0, 255), map(value[1], 0, 100, 0, 255), map(value[3], 0, 100, 0, 255));
       lv_obj_set_style_bg_color(ui_colorPNL, color, LV_PART_MAIN);
 
@@ -440,53 +635,66 @@ void initVib()
   // default, internal trigger when sending RUN command
   drv.setMode(SensorDRV2605::MODE_INTTRIG);
   Serial.println("Init DRV2605 Sensor success!");
-  drv.setWaveform(0, 47);
-  drv.setWaveform(1, 0);
-  drv.run();
-  delay(1000);
+  vibrateStrong2Sec();
 }
 
-void show_startup_message(const char* msg) {
-    // Create a label on the active screen
-    lv_obj_t *label = lv_label_create(lv_scr_act());
-    lv_label_set_text(label, msg);
-    lv_obj_center(label); // center it on the screen
-    lv_task_handler();    // refresh LVGL to display immediately
-    delay(2000);          // keep message visible for 2 seconds
-    lv_obj_del(label);    // remove it after
+void show_message(const char *msg)
+{
+  // Create a label on the active screen
+  lv_obj_t *label = lv_label_create(lv_scr_act());
+  lv_label_set_text(label, msg);
+
+  // Align to bottom center with some padding (e.g., 20 px above bottom)
+  lv_obj_align(label, LV_ALIGN_BOTTOM_MID, 0, -20);
+
+  // Optionally, make sure it redraws right away
+  lv_task_handler();
+
+  // Keep message visible for 2 seconds
+  // lv_timer_t *timer = lv_timer_create(
+  //     (lv_timer_cb_t)lv_obj_del, 200, label);
+  // // after 2000 ms, lv_obj_del(label) will be called automatically
+  vTaskDelay(pdMS_TO_TICKS(200));
+  lv_obj_del(label);
 }
 
 void setup()
 {
   mutex = xSemaphoreCreateMutex();
   Serial.begin(115200);
-  delay(2000);
+
   initVib();
   Touch_Init();
   lcd_lvgl_Init();
-  show_startup_message("Starting...");
+
   lv_example_meter_1();
   lv_example_meter_2();
   lv_example_meter_3();
   lv_example_meter_4();
+  lv_example_clock();
+  add_dropdown_options("A1,A2,A3");
   Serial.println("starting");
   set_active_meter(chosen);
-  lcd_bl_pwm_bsp_init(150); // brightness up to 255
+  lcd_bl_pwm_bsp_init(80);
 
+  xTaskCreate(example_lvgl_port_task, "LVGL", EXAMPLE_LVGL_TASK_STACK_SIZE, NULL, EXAMPLE_LVGL_TASK_PRIORITY, NULL);
+  show_message("Starting...");
   preferences.begin("bat", false);
   automata.begin();
   automata.addAttribute("encoder1", "Encoder 1", "", "DATA|MAIN");
   automata.addAttribute("encoder2", "Encoder 2", "", "DATA|MAIN");
   automata.addAttribute("encoder3", "Encoder 3", "", "DATA|MAIN");
   automata.addAttribute("encoder4", "Encoder 4", "", "DATA|MAIN");
+  automata.addAttribute("screen", "Screen", "", "DATA|AUX");
   automata.addAttribute("chosen", "Chosen", "", "DATA|MAIN");
   automata.addAttribute("action", "Action", "", "ACTION|IN");
+  automata.addAttribute("battery_volt", "Battery", "V", "DATA|MAIN");
   // automata.addAttribute("upTime", "Up Time", "Hours", "DATA|MAIN");
-
+  show_message("Setting attributes...");
   automata.registerDevice();
   automata.onActionReceived(action);
   automata.delayedUpdate(sendData);
-
+  show_message("Registering device...");
   knob_even_ = xEventGroupCreate();
   // create knob
   knob_config_t cfg =
@@ -499,9 +707,11 @@ void setup()
   iot_knob_register_cb(s_knob, KNOB_LEFT, _knob_left_cb, NULL);
   iot_knob_register_cb(s_knob, KNOB_RIGHT, _knob_right_cb, NULL);
   xTaskCreate(user_encoder_loop_task, "user_encoder_loop_task", 3000, NULL, 2, NULL);
-  xTaskCreate(example_lvgl_port_task, "LVGL", EXAMPLE_LVGL_TASK_STACK_SIZE, NULL, EXAMPLE_LVGL_TASK_PRIORITY, NULL);
+  lv_disp_load_scr(ui_Screen5);
+  show_message("Welcome...");
+  add_dropdown_options(automata.getAutomations().c_str());
 }
-
+bool alreadySet = false;
 void loop()
 {
   doc["encoder1"] = myData.power;
@@ -509,18 +719,28 @@ void loop()
   doc["encoder3"] = myData.blue;
   doc["encoder4"] = myData.red;
   doc["chosen"] = chosen;
-  Serial.println("loop");
+  doc["screen"] = selectedScreen;
+  float bt = ((analogRead(1) * 2 * 3.3 * 1000) / 4096) / 1000;
+
+  doc["battery_volt"] = String(bt, 2);
+  // Serial.println("loop");
   automata.loop();
 
-  automata.sendLive(doc);
-  start = millis();
-  drv.setWaveform(0, 47);
-  drv.setWaveform(1, 0); // end waveform
+  if ((millis() - start) > 500)
+  {
+    automata.sendLive(doc);
+    start = millis();
+    // Start vibration
+  }
 
-  drv.run();
-  vTaskDelay(1);
-
-  effect++;
-  if (effect > 117)
-    effect = 1;
+  if (actionSend)
+  {
+    JsonDocument doc;
+    doc["action"] = actionNum;
+    doc["key"] = "button";
+    automata.sendAction(doc);
+    Serial.print("action: ");
+    Serial.println(actionNum);
+    actionSend = false;
+  }
 }
