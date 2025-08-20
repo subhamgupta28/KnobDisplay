@@ -6,10 +6,10 @@
 #include "ui.h"
 
 lv_obj_t * uic_Label26;
+lv_obj_t * uic_Label19;
 lv_obj_t * uic_Label25;
 lv_obj_t * uic_StartLabel;
 lv_obj_t * uic_EndLabel;
-lv_obj_t * uic_Label19;
 lv_obj_t * uic_Button5;
 lv_obj_t * ui_Screen4 = NULL;
 lv_obj_t * ui_Arc5 = NULL;
@@ -17,10 +17,11 @@ lv_obj_t * ui_Dropdown1 = NULL;
 lv_obj_t * ui_Button5 = NULL;
 lv_obj_t * ui_Label18 = NULL;
 lv_obj_t * ui_Label17 = NULL;
-lv_obj_t * ui_Label19 = NULL;
 lv_obj_t * ui_EndLabel = NULL;
 lv_obj_t * ui_StartLabel = NULL;
 lv_obj_t * ui_Label25 = NULL;
+lv_obj_t * ui_Panel3 = NULL;
+lv_obj_t * ui_Label19 = NULL;
 lv_obj_t * ui_Label26 = NULL;
 // event funtions
 void ui_event_Screen4(lv_event_t * e)
@@ -33,6 +34,10 @@ void ui_event_Screen4(lv_event_t * e)
     }
     if(event_code == LV_EVENT_SCREEN_LOADED) {
         selectedScreen4_cb(e);
+    }
+    if(event_code == LV_EVENT_GESTURE &&  lv_indev_get_gesture_dir(lv_indev_get_act()) == LV_DIR_LEFT) {
+        lv_indev_wait_release(lv_indev_get_act());
+        _ui_screen_change(&ui_Screen6, LV_SCR_LOAD_ANIM_MOVE_LEFT, 500, 0, &ui_Screen6_screen_init);
     }
 }
 
@@ -67,6 +72,7 @@ void ui_Screen4_screen_init(void)
     lv_obj_set_width(ui_Arc5, 350);
     lv_obj_set_height(ui_Arc5, 350);
     lv_obj_set_align(ui_Arc5, LV_ALIGN_CENTER);
+    lv_obj_clear_flag(ui_Arc5, LV_OBJ_FLAG_CLICKABLE);      /// Flags
     lv_arc_set_value(ui_Arc5, 50);
     lv_obj_set_style_arc_width(ui_Arc5, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
 
@@ -78,9 +84,9 @@ void ui_Screen4_screen_init(void)
     lv_obj_set_style_bg_opa(ui_Arc5, 0, LV_PART_KNOB | LV_STATE_DEFAULT);
 
     ui_Dropdown1 = lv_dropdown_create(ui_Screen4);
-    lv_obj_set_width(ui_Dropdown1, 160);
+    lv_obj_set_width(ui_Dropdown1, 165);
     lv_obj_set_height(ui_Dropdown1, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_x(ui_Dropdown1, -40);
+    lv_obj_set_x(ui_Dropdown1, -45);
     lv_obj_set_y(ui_Dropdown1, -80);
     lv_obj_set_align(ui_Dropdown1, LV_ALIGN_CENTER);
     lv_obj_add_flag(ui_Dropdown1, LV_OBJ_FLAG_SCROLL_ON_FOCUS);     /// Flags
@@ -92,12 +98,17 @@ void ui_Screen4_screen_init(void)
     lv_obj_set_style_bg_color(lv_dropdown_get_list(ui_Dropdown1), lv_color_hex(0x363636),  LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(lv_dropdown_get_list(ui_Dropdown1), 255,  LV_PART_MAIN | LV_STATE_DEFAULT);
 
+    lv_obj_set_style_bg_color(lv_dropdown_get_list(ui_Dropdown1), lv_color_hex(0xFFD700),
+                              LV_PART_SELECTED | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(lv_dropdown_get_list(ui_Dropdown1), 255,  LV_PART_SELECTED | LV_STATE_DEFAULT);
+
     ui_Button5 = lv_btn_create(ui_Screen4);
-    lv_obj_set_width(ui_Button5, 80);
+    lv_obj_set_width(ui_Button5, 75);
     lv_obj_set_height(ui_Button5, 40);
     lv_obj_set_x(ui_Button5, 90);
     lv_obj_set_y(ui_Button5, -80);
     lv_obj_set_align(ui_Button5, LV_ALIGN_CENTER);
+    lv_obj_set_style_radius(ui_Button5, 6, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_color(ui_Button5, lv_color_hex(0xE1E1E1), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_Button5, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
 
@@ -118,15 +129,6 @@ void ui_Screen4_screen_init(void)
     lv_obj_set_y(ui_Label17, -150);
     lv_obj_set_align(ui_Label17, LV_ALIGN_CENTER);
     lv_label_set_text(ui_Label17, "Automations");
-
-    ui_Label19 = lv_label_create(ui_Screen4);
-    lv_obj_set_width(ui_Label19, LV_SIZE_CONTENT);   /// 1
-    lv_obj_set_height(ui_Label19, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_x(ui_Label19, -60);
-    lv_obj_set_y(ui_Label19, -30);
-    lv_obj_set_align(ui_Label19, LV_ALIGN_CENTER);
-    lv_label_set_text(ui_Label19, "");
-    lv_obj_set_style_text_align(ui_Label19, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_EndLabel = lv_label_create(ui_Screen4);
     lv_obj_set_width(ui_EndLabel, LV_SIZE_CONTENT);   /// 1
@@ -151,19 +153,40 @@ void ui_Screen4_screen_init(void)
     lv_obj_set_y(ui_Label25, 125);
     lv_obj_set_align(ui_Label25, LV_ALIGN_CENTER);
 
+    ui_Panel3 = lv_obj_create(ui_Screen4);
+    lv_obj_set_width(ui_Panel3, 260);
+    lv_obj_set_height(ui_Panel3, 100);
+    lv_obj_set_align(ui_Panel3, LV_ALIGN_CENTER);
+    lv_obj_clear_flag(ui_Panel3, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
+    lv_obj_set_style_bg_color(ui_Panel3, lv_color_hex(0x232323), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(ui_Panel3, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_color(ui_Panel3, lv_color_hex(0xD1C800), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_opa(ui_Panel3, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_Label19 = lv_label_create(ui_Screen4);
+    lv_obj_set_width(ui_Label19, 240);
+    lv_obj_set_height(ui_Label19, LV_SIZE_CONTENT);    /// 4
+    lv_obj_set_x(ui_Label19, 0);
+    lv_obj_set_y(ui_Label19, -10);
+    lv_obj_set_align(ui_Label19, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_Label19, "");
+    lv_obj_set_style_text_align(ui_Label19, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN | LV_STATE_DEFAULT);
+
     ui_Label26 = lv_label_create(ui_Screen4);
-    lv_obj_set_width(ui_Label26, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_width(ui_Label26, 240);
     lv_obj_set_height(ui_Label26, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_Label26, 0);
+    lv_obj_set_y(ui_Label26, 30);
     lv_obj_set_align(ui_Label26, LV_ALIGN_CENTER);
 
     lv_obj_add_event_cb(ui_Dropdown1, ui_event_Dropdown1, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(ui_Button5, ui_event_Button5, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(ui_Screen4, ui_event_Screen4, LV_EVENT_ALL, NULL);
     uic_Button5 = ui_Button5;
-    uic_Label19 = ui_Label19;
     uic_EndLabel = ui_EndLabel;
     uic_StartLabel = ui_StartLabel;
     uic_Label25 = ui_Label25;
+    uic_Label19 = ui_Label19;
     uic_Label26 = ui_Label26;
 
 }
@@ -180,14 +203,15 @@ void ui_Screen4_screen_destroy(void)
     ui_Button5 = NULL;
     ui_Label18 = NULL;
     ui_Label17 = NULL;
-    uic_Label19 = NULL;
-    ui_Label19 = NULL;
     uic_EndLabel = NULL;
     ui_EndLabel = NULL;
     uic_StartLabel = NULL;
     ui_StartLabel = NULL;
     uic_Label25 = NULL;
     ui_Label25 = NULL;
+    ui_Panel3 = NULL;
+    uic_Label19 = NULL;
+    ui_Label19 = NULL;
     uic_Label26 = NULL;
     ui_Label26 = NULL;
 

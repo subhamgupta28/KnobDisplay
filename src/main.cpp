@@ -7,11 +7,11 @@
 #include "Automata.h"
 #include "ArduinoJson.h"
 #include <WiFi.h>
-#include <Wire.h>
+#include "lcd/drv2605.c"
 #include <SPI.h>
 #include <Arduino.h>
-#include "SensorDRV2605.hpp"
 #include <time.h>
+#include "lcd/sd_card_bsp.h"
 // const char* HOST = "192.168.1.7";
 // int PORT = 8080;
 
@@ -25,12 +25,9 @@ unsigned long startMillis;
 int ch = millis();
 long start = millis();
 JsonDocument doc;
-static const char *TAG = "encoder";
 
 #define SENSOR_SDA 11
 #define SENSOR_SCL 12
-
-SensorDRV2605 drv;
 
 uint8_t effect = 1;
 
@@ -83,6 +80,7 @@ SemaphoreHandle_t mutex;
 int actionNum = 0;
 bool actionSend = false;
 String selectedAutomation = "";
+bool changeDetected = false;
 
 static lv_obj_t *clock_meter;
 static lv_meter_indicator_t *hour_hand;
@@ -136,6 +134,114 @@ void lv_example_clock(void)
   clock_update_cb(NULL);
 }
 
+void lv_example_gif_1(void)
+{
+  lv_obj_t *gif = lv_gif_create(lv_scr_act());
+  lv_gif_set_src(gif, "/spiffs/loading_anim.gif"); // S: is default SPIFFS drive in LVGL FS
+  lv_obj_align(gif, LV_ALIGN_CENTER, 0, 0);
+}
+#define WEATHER_API_KEY "YOUR_API_KEY"
+#define WEATHER_CITY "Hyderabad"
+#define WEATHER_URL "http://api.openweathermap.org/data/2.5/weather?q=%s&appid=%s&units=metric"
+
+typedef struct
+{
+  char city[64];
+  char description[64];
+  float temperature;
+  float temp_min;
+  float temp_max;
+  int humidity;
+  float wind_speed;
+  int visibility;
+  char icon[8];
+  char date_str[64];
+} WeatherData;
+
+WeatherData currentWeather;
+
+// --- Mock function for fetching weather via API ---
+// Replace with real HTTP GET using your environment
+int fetch_weather_api(const char *city, WeatherData *data)
+{
+  // Example: Hardcoded response (simulate API)
+  strcpy(data->city, "Hyderabad");
+  strcpy(data->description, "Sunny");
+  data->temperature = 29.5;
+  data->temp_min = 28.0;
+  data->temp_max = 31.0;
+  data->humidity = 42;
+  data->wind_speed = 4.2;
+  data->visibility = 5000; // meters
+  strcpy(data->icon, "01d");
+
+  // Add date string
+  time_t t = time(NULL);
+  struct tm *tm_info = localtime(&t);
+  strftime(data->date_str, sizeof(data->date_str), "%A %d %b, %Y", tm_info);
+
+  return 0; // success
+}
+void update_weather_ui(const WeatherData *data)
+{
+  if (!uic_areaname || !uic_datetext)
+    return; // screen not initialized
+
+  // Update city
+  lv_label_set_text(uic_areaname, data->city);
+
+  // Update date
+  lv_label_set_text(uic_datetext, data->date_str);
+
+  // Update temperature
+  char temp_buf[16];
+  snprintf(temp_buf, sizeof(temp_buf), "%.0f°C", data->temperature);
+  lv_label_set_text(uic_temp, temp_buf);
+
+  // Update side info (description, min/max)
+  char side_buf[64];
+  snprintf(side_buf, sizeof(side_buf), "%s\n%.0f / %.0f°C",
+           data->description, data->temp_min, data->temp_max);
+  lv_label_set_text(uic_sidetext, side_buf);
+
+  // Update wind
+  char wind_buf[32];
+  snprintf(wind_buf, sizeof(wind_buf), "Wind\n%.1f km/h", data->wind_speed);
+  lv_label_set_text(uic_wind, wind_buf);
+
+  // Update humidity
+  char hum_buf[32];
+  snprintf(hum_buf, sizeof(hum_buf), "Humidity\n%d%%", data->humidity);
+  lv_label_set_text(uic_humidity, hum_buf);
+
+  // Update visibility
+  char vis_buf[32];
+  snprintf(vis_buf, sizeof(vis_buf), "Visibility\n%.1f km", data->visibility / 1000.0);
+  lv_label_set_text(uic_visibility, vis_buf);
+
+  // Update icon (example, you can map API icon codes to your LVGL images)
+  if (strcmp(data->icon, "01d") == 0)
+  {
+    lv_img_set_src(uic_img, &ui_img_sunny_png);
+  }
+  else
+  {
+    lv_img_set_src(uic_img, &ui_img_winter_png);
+  }
+}
+
+// --- Wrapper function: fetch + update ---
+void show_weather(void)
+{
+  if (fetch_weather_api(WEATHER_CITY, &currentWeather) == 0)
+  {
+    update_weather_ui(&currentWeather);
+  }
+  else
+  {
+    printf("Failed to fetch weather data\n");
+  }
+}
 void sendAction1Click(lv_event_t *e)
 {
   // Your code here
@@ -210,20 +316,7 @@ void sendAction5Click(lv_event_t *e)
   actionNum = 5;
   actionSend = true;
 }
-void vibrateStrong2Sec()
-{
-  // Select a strong continuous buzz effect
-  for (int i = 0; i < 10; i++)
-  {
-    drv.setWaveform(0, 118); // Long buzz (100%) effect
-    drv.setWaveform(1, 0);   // End waveform
 
-    drv.run(); // Start vibration
-    vTaskDelay(pdMS_TO_TICKS(200));
-
-    drv.stop(); // Stop the vibration
-  }
-}
 byte value[4] = {25, 25, 25, 25}; // values of each meter 0= power, 1 =green , 2 red, 3 blue
 int chosen = 0;
 void set_active_meter(int index)
@@ -529,15 +622,8 @@ static void user_encoder_loop_task(void *arg)
         myData.red = map(value[2], 0, 100, 0, 255);
         myData.blue = map(value[3], 0, 100, 0, 255);
         myData.green = map(value[1], 0, 100, 0, 255);
-
+        changeDetected = true;
         encPos = value[chosen];
-
-        // doc["encoder1"] = myData.power;
-        // doc["encoder2"] = myData.green;
-        // doc["encoder3"] = myData.blue;
-        // doc["encoder4"] = myData.red;
-        // doc["chosen"] = chosen;
-        // automata.sendLive(doc);
 
         xSemaphoreGive(mutex);
       }
@@ -555,13 +641,7 @@ static void user_encoder_loop_task(void *arg)
         myData.blue = map(value[3], 0, 100, 0, 255);
         myData.green = map(value[1], 0, 100, 0, 255);
         encPos = value[chosen];
-        // doc["encoder1"] = myData.power;
-        // doc["encoder2"] = myData.green;
-        // doc["encoder3"] = myData.blue;
-        // doc["encoder4"] = myData.red;
-        // doc["chosen"] = chosen;
-        // automata.sendLive(doc);
-
+        changeDetected = true;
         xSemaphoreGive(mutex);
       }
       // vibrateStrong2Sec();
@@ -617,27 +697,6 @@ static void example_lvgl_port_task(void *arg)
   }
 }
 
-void initVib()
-{
-  Wire.begin(SENSOR_SDA, SENSOR_SCL, 400000);
-  if (!drv.begin(Wire))
-  {
-    Serial.println("Failed to find DRV2605 - check your wiring!");
-    while (1)
-    {
-      Serial.println("Failed to find DRV2605 - check your wiring!");
-      delay(1000);
-    }
-  }
-  drv.selectLibrary(1);
-
-  // I2C trigger by sending 'run' command
-  // default, internal trigger when sending RUN command
-  drv.setMode(SensorDRV2605::MODE_INTTRIG);
-  Serial.println("Init DRV2605 Sensor success!");
-  vibrateStrong2Sec();
-}
-
 void show_message(const char *msg)
 {
   // Create a label on the active screen
@@ -663,20 +722,25 @@ void setup()
   mutex = xSemaphoreCreateMutex();
   Serial.begin(115200);
 
-  initVib();
   Touch_Init();
   lcd_lvgl_Init();
-
   lv_example_meter_1();
   lv_example_meter_2();
   lv_example_meter_3();
   lv_example_meter_4();
   lv_example_clock();
+  // lv_example_gif_1();
   add_dropdown_options("A1,A2,A3");
   Serial.println("starting");
   set_active_meter(chosen);
   lcd_bl_pwm_bsp_init(80);
-
+  if (drv2605_init() == ESP_OK)
+  {
+    // Vibrate with effect 1 (strong click)
+    drv2605_play_effect(47); // Long strong buzz
+  }
+  show_weather();
+  // sd_card_Init();
   xTaskCreate(example_lvgl_port_task, "LVGL", EXAMPLE_LVGL_TASK_STACK_SIZE, NULL, EXAMPLE_LVGL_TASK_PRIORITY, NULL);
   show_message("Starting...");
   preferences.begin("bat", false);
@@ -710,6 +774,7 @@ void setup()
   lv_disp_load_scr(ui_Screen5);
   show_message("Welcome...");
   add_dropdown_options(automata.getAutomations().c_str());
+  // sd_card_list_files("/", 2);
 }
 bool alreadySet = false;
 void loop()
@@ -726,11 +791,16 @@ void loop()
   // Serial.println("loop");
   automata.loop();
 
-  if ((millis() - start) > 500)
+  if (changeDetected || (millis() - start) > 10000)
   {
     automata.sendLive(doc);
+    drv2605_play_effect(1); // Strong click
+    // drv2605_play_effect(2);  // Sharp click
+    // drv2605_play_effect(47); // Long strong buzz
+    // drv2605_play_effect(12); // Double strong click
     start = millis();
     // Start vibration
+    changeDetected = false;
   }
 
   if (actionSend)
@@ -738,6 +808,7 @@ void loop()
     JsonDocument doc;
     doc["action"] = actionNum;
     doc["key"] = "button";
+    drv2605_play_effect(47);
     automata.sendAction(doc);
     Serial.print("action: ");
     Serial.println(actionNum);

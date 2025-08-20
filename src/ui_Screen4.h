@@ -22,17 +22,18 @@ extern void ui_event_Button5(lv_event_t * e);
 extern lv_obj_t * ui_Button5;
 extern lv_obj_t * ui_Label18;
 extern lv_obj_t * ui_Label17;
-extern lv_obj_t * ui_Label19;
 extern lv_obj_t * ui_EndLabel;
 extern lv_obj_t * ui_StartLabel;
 extern lv_obj_t * ui_Label25;
+extern lv_obj_t * ui_Panel3;
+extern lv_obj_t * ui_Label19;
 extern lv_obj_t * ui_Label26;
 // CUSTOM VARIABLES
 extern lv_obj_t * uic_Button5;
-extern lv_obj_t * uic_Label19;
 extern lv_obj_t * uic_EndLabel;
 extern lv_obj_t * uic_StartLabel;
 extern lv_obj_t * uic_Label25;
+extern lv_obj_t * uic_Label19;
 extern lv_obj_t * uic_Label26;
 
 #ifdef __cplusplus
