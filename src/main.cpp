@@ -1,3 +1,4 @@
+#include "lcd/lv_fs_sd.h"
 #include "lcd/lcd_bsp.h"
 #include "lcd/cst816.h"
 #include "lcd/lcd_bl_pwm_bsp.h"
@@ -53,7 +54,7 @@ typedef struct struct_message
 } struct_message;
 
 struct_message myData;
-
+int bright = 80;
 #define EXAMPLE_ENCODER_ECA_PIN 8
 #define EXAMPLE_ENCODER_ECB_PIN 7
 
@@ -64,6 +65,12 @@ struct_message myData;
 
 void action(const Action action)
 {
+  if (action.data.containsKey("bright"))
+  {
+    int sp = action.data["bright"];
+    lcd_bl_pwm_bsp_init(bright);
+  }
+
   String jsonString;
   serializeJson(action.data, jsonString);
   Serial.println(jsonString);
@@ -136,9 +143,13 @@ void lv_example_clock(void)
 
 void lv_example_gif_1(void)
 {
-  lv_obj_t *gif = lv_gif_create(lv_scr_act());
-  lv_gif_set_src(gif, "/spiffs/loading_anim.gif"); // S: is default SPIFFS drive in LVGL FS
-  lv_obj_align(gif, LV_ALIGN_CENTER, 0, 0);
+  // lv_obj_t *img = lv_img_create(ui_Screen5);
+  // lv_img_set_src(img, "S:/sdcard/test0826.png");
+  // lv_obj_center(img);
+  lv_obj_t *gif = lv_gif_create(ui_Screen5);
+  lv_obj_center(gif);
+  lv_gif_set_src(gif, "S:/sdcard/loading_anim_1.gif");
+  lv_obj_move_foreground(gif);
 }
 #define WEATHER_API_KEY "YOUR_API_KEY"
 #define WEATHER_CITY "Hyderabad"
@@ -624,7 +635,7 @@ static void user_encoder_loop_task(void *arg)
         myData.green = map(value[1], 0, 100, 0, 255);
         changeDetected = true;
         encPos = value[chosen];
-
+        drv2605_play_effect(1);
         xSemaphoreGive(mutex);
       }
       // vibrateStrong2Sec();
@@ -642,6 +653,7 @@ static void user_encoder_loop_task(void *arg)
         myData.green = map(value[1], 0, 100, 0, 255);
         encPos = value[chosen];
         changeDetected = true;
+        drv2605_play_effect(1);
         xSemaphoreGive(mutex);
       }
       // vibrateStrong2Sec();
@@ -657,7 +669,7 @@ static void example_lvgl_port_task(void *arg)
   {
     lv_timer_handler();
 
-    if (xSemaphoreTake(mutex, portMAX_DELAY))
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(10)))
     {
 
       lv_label_set_text(ui_power, String(value[0]).c_str());
@@ -693,7 +705,7 @@ static void example_lvgl_port_task(void *arg)
 
       xSemaphoreGive(mutex);
     }
-    vTaskDelay(pdMS_TO_TICKS(1));
+    vTaskDelay(pdMS_TO_TICKS(10));
   }
 }
 
@@ -717,30 +729,42 @@ void show_message(const char *msg)
   lv_obj_del(label);
 }
 
+// void lv_example_animimg_1(void)
+// {
+//     lv_obj_t * animimg0 = lv_animimg_create(lv_scr_act());
+//     lv_obj_center(animimg0);
+//     lv_animimg_set_src(animimg0, (const void **) anim_imgs, 3);
+//     lv_animimg_set_duration(animimg0, 1000);
+//     lv_animimg_set_repeat_count(animimg0, LV_ANIM_REPEAT_INFINITE);
+//     lv_animimg_start(animimg0);
+// }
 void setup()
 {
   mutex = xSemaphoreCreateMutex();
   Serial.begin(115200);
-
+  delay(2000);
   Touch_Init();
   lcd_lvgl_Init();
+  sd_card_Init(); // Mounts at /sdcard
+  lv_fs_sd_init();
+
   lv_example_meter_1();
   lv_example_meter_2();
   lv_example_meter_3();
   lv_example_meter_4();
-  lv_example_clock();
-  // lv_example_gif_1();
+  // lv_example_clock();
+
   add_dropdown_options("A1,A2,A3");
   Serial.println("starting");
   set_active_meter(chosen);
-  lcd_bl_pwm_bsp_init(80);
+  lcd_bl_pwm_bsp_init(120);
   if (drv2605_init() == ESP_OK)
   {
     // Vibrate with effect 1 (strong click)
     drv2605_play_effect(47); // Long strong buzz
   }
   show_weather();
-  // sd_card_Init();
+
   xTaskCreate(example_lvgl_port_task, "LVGL", EXAMPLE_LVGL_TASK_STACK_SIZE, NULL, EXAMPLE_LVGL_TASK_PRIORITY, NULL);
   show_message("Starting...");
   preferences.begin("bat", false);
@@ -752,8 +776,11 @@ void setup()
   automata.addAttribute("screen", "Screen", "", "DATA|AUX");
   automata.addAttribute("chosen", "Chosen", "", "DATA|MAIN");
   automata.addAttribute("action", "Action", "", "ACTION|IN");
+  JsonDocument doc;
+  doc["max"] = 255;
+  doc["min"] = 0;
+  automata.addAttribute("bright", "Brightness", "", "ACTION|SLIDER", doc);
   automata.addAttribute("battery_volt", "Battery", "V", "DATA|MAIN");
-  // automata.addAttribute("upTime", "Up Time", "Hours", "DATA|MAIN");
   show_message("Setting attributes...");
   automata.registerDevice();
   automata.onActionReceived(action);
@@ -770,13 +797,17 @@ void setup()
 
   iot_knob_register_cb(s_knob, KNOB_LEFT, _knob_left_cb, NULL);
   iot_knob_register_cb(s_knob, KNOB_RIGHT, _knob_right_cb, NULL);
-  xTaskCreate(user_encoder_loop_task, "user_encoder_loop_task", 3000, NULL, 2, NULL);
+  xTaskCreate(user_encoder_loop_task, "user_encoder_loop_task", 2000, NULL, 2, NULL);
   lv_disp_load_scr(ui_Screen5);
+
   show_message("Welcome...");
   add_dropdown_options(automata.getAutomations().c_str());
-  // sd_card_list_files("/", 2);
+  // sd_card_list_files("/", 1);
+  Serial.println(ESP.getPsramSize());
+  lv_example_gif_1();
 }
 bool alreadySet = false;
+
 void loop()
 {
   doc["encoder1"] = myData.power;
@@ -785,16 +816,16 @@ void loop()
   doc["encoder4"] = myData.red;
   doc["chosen"] = chosen;
   doc["screen"] = selectedScreen;
+  doc["bright"] = bright;
   float bt = ((analogRead(1) * 2 * 3.3 * 1000) / 4096) / 1000;
 
   doc["battery_volt"] = String(bt, 2);
-  // Serial.println("loop");
   automata.loop();
 
   if (changeDetected || (millis() - start) > 10000)
   {
     automata.sendLive(doc);
-    drv2605_play_effect(1); // Strong click
+    // drv2605_play_effect(1); // Strong click
     // drv2605_play_effect(2);  // Sharp click
     // drv2605_play_effect(47); // Long strong buzz
     // drv2605_play_effect(12); // Double strong click
