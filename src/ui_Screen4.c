@@ -67,7 +67,7 @@ void ui_Screen4_screen_init(void)
     lv_obj_clear_flag(ui_Screen4, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
     lv_obj_set_style_bg_color(ui_Screen4, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_Screen4, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_img_src(ui_Screen4, &ui_img_background_png, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_img_src(ui_Screen4, &ui_img_1086829539, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_Arc5 = lv_arc_create(ui_Screen4);
     lv_obj_set_width(ui_Arc5, 350);

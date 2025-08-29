@@ -6,6 +6,9 @@
 #include "ui.h"
 
 lv_obj_t * ui_Screen5 = NULL;
+lv_obj_t * ui_timeText = NULL;
+lv_obj_t * ui_dateField = NULL;
+lv_obj_t * ui_tempText = NULL;
 // event funtions
 void ui_event_Screen5(lv_event_t * e)
 {
@@ -25,7 +28,35 @@ void ui_Screen5_screen_init(void)
     lv_obj_clear_flag(ui_Screen5, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
     lv_obj_set_style_bg_color(ui_Screen5, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_Screen5, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    // lv_obj_set_style_bg_img_src(ui_Screen5, &ui_img_desert_png, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_img_src(ui_Screen5, &ui_img_1086829539, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_timeText = lv_label_create(ui_Screen5);
+    lv_obj_set_width(ui_timeText, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_timeText, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_timeText, -80);
+    lv_obj_set_y(ui_timeText, 50);
+    lv_obj_set_align(ui_timeText, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_timeText, "11:50 PM");
+    lv_obj_set_style_text_align(ui_timeText, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_timeText, &lv_font_montserrat_34, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_dateField = lv_label_create(ui_Screen5);
+    lv_obj_set_width(ui_dateField, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_dateField, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_dateField, 60);
+    lv_obj_set_y(ui_dateField, 85);
+    lv_obj_set_align(ui_dateField, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_dateField, "Thu, Aug 28");
+    lv_obj_set_style_text_font(ui_dateField, &lv_font_montserrat_20, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_tempText = lv_label_create(ui_Screen5);
+    lv_obj_set_width(ui_tempText, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_tempText, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_tempText, 25);
+    lv_obj_set_y(ui_tempText, 120);
+    lv_obj_set_align(ui_tempText, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_tempText, "25 °C");
+    lv_obj_set_style_text_font(ui_tempText, &lv_font_montserrat_20, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     lv_obj_add_event_cb(ui_Screen5, ui_event_Screen5, LV_EVENT_ALL, NULL);
 
@@ -37,5 +68,8 @@ void ui_Screen5_screen_destroy(void)
 
     // NULL screen variables
     ui_Screen5 = NULL;
+    ui_timeText = NULL;
+    ui_dateField = NULL;
+    ui_tempText = NULL;
 
 }

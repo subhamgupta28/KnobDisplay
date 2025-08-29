@@ -13,6 +13,7 @@
 #include <Arduino.h>
 #include <time.h>
 #include "lcd/sd_card_bsp.h"
+#include "driver/temp_sensor.h"
 // const char* HOST = "192.168.1.7";
 // int PORT = 8080;
 
@@ -54,7 +55,7 @@ typedef struct struct_message
 } struct_message;
 
 struct_message myData;
-int bright = 80;
+int bright = 60;
 #define EXAMPLE_ENCODER_ECA_PIN 8
 #define EXAMPLE_ENCODER_ECB_PIN 7
 
@@ -67,7 +68,7 @@ void action(const Action action)
 {
   if (action.data.containsKey("bright"))
   {
-    int sp = action.data["bright"];
+    bright = action.data["bright"];
     lcd_bl_pwm_bsp_init(bright);
   }
 
@@ -141,15 +142,15 @@ void lv_example_clock(void)
   clock_update_cb(NULL);
 }
 
-void lv_example_gif_1(void)
+void lv_example_gif_1(String path)
 {
   // lv_obj_t *img = lv_img_create(ui_Screen5);
   // lv_img_set_src(img, "S:/sdcard/test0826.png");
   // lv_obj_center(img);
   lv_obj_t *gif = lv_gif_create(ui_Screen5);
   lv_obj_center(gif);
-  lv_gif_set_src(gif, "S:/sdcard/loading_anim_1.gif");
-  lv_obj_move_foreground(gif);
+  lv_gif_set_src(gif, path.c_str());
+  // lv_obj_move_foreground(gif);
 }
 #define WEATHER_API_KEY "YOUR_API_KEY"
 #define WEATHER_CITY "Hyderabad"
@@ -669,7 +670,7 @@ static void example_lvgl_port_task(void *arg)
   {
     lv_timer_handler();
 
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(10)))
+    if (xSemaphoreTake(mutex, portMAX_DELAY))
     {
 
       lv_label_set_text(ui_power, String(value[0]).c_str());
@@ -705,7 +706,7 @@ static void example_lvgl_port_task(void *arg)
 
       xSemaphoreGive(mutex);
     }
-    vTaskDelay(pdMS_TO_TICKS(10));
+    vTaskDelay(pdMS_TO_TICKS(100));
   }
 }
 
@@ -729,15 +730,49 @@ void show_message(const char *msg)
   lv_obj_del(label);
 }
 
-// void lv_example_animimg_1(void)
-// {
-//     lv_obj_t * animimg0 = lv_animimg_create(lv_scr_act());
-//     lv_obj_center(animimg0);
-//     lv_animimg_set_src(animimg0, (const void **) anim_imgs, 3);
-//     lv_animimg_set_duration(animimg0, 1000);
-//     lv_animimg_set_repeat_count(animimg0, LV_ANIM_REPEAT_INFINITE);
-//     lv_animimg_start(animimg0);
-// }
+
+#define FRAME_INTERVAL 200   // 100 ms per frame = 10 FPS
+#define NUM_FRAMES     144    // Number of frames you have
+
+static lv_obj_t *frame_obj;
+static int current_frame = 0;
+static esp_timer_handle_t frame_timer;
+
+// Example: frames named frame_000.png, frame_001.png, ...
+static char path[64];
+
+static void show_next_frame(void *arg)
+{
+  //frame_113_delay-0.04s
+    snprintf(path, sizeof(path), "S:/sdcard/frame_%03d_delay-0.04s.png", current_frame);
+    printf("Loading frame: %s\n", path);
+
+    lv_img_set_src(frame_obj, path);
+    lv_obj_center(frame_obj);
+
+    current_frame++;
+    if (current_frame >= NUM_FRAMES) {
+        current_frame = 0;  // loop
+    }
+}
+
+void lv_example_video_play(void)
+{
+    // Create image object
+    frame_obj = lv_img_create(ui_Screen5);
+    lv_obj_center(frame_obj);
+
+    // Start timer
+    const esp_timer_create_args_t frame_timer_args = {
+        .callback = &show_next_frame,
+        .name = "frame_timer"
+    };
+    ESP_ERROR_CHECK(esp_timer_create(&frame_timer_args, &frame_timer));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(frame_timer, FRAME_INTERVAL * 1000));
+}
+const char* ntpServer = "pool.ntp.org";
+const long  gmtOffset_sec = 19800;   // 5h 30m in seconds
+const int   daylightOffset_sec = 0;  // No DST
 void setup()
 {
   mutex = xSemaphoreCreateMutex();
@@ -757,7 +792,7 @@ void setup()
   add_dropdown_options("A1,A2,A3");
   Serial.println("starting");
   set_active_meter(chosen);
-  lcd_bl_pwm_bsp_init(120);
+  lcd_bl_pwm_bsp_init(bright);
   if (drv2605_init() == ESP_OK)
   {
     // Vibrate with effect 1 (strong click)
@@ -797,16 +832,41 @@ void setup()
 
   iot_knob_register_cb(s_knob, KNOB_LEFT, _knob_left_cb, NULL);
   iot_knob_register_cb(s_knob, KNOB_RIGHT, _knob_right_cb, NULL);
-  xTaskCreate(user_encoder_loop_task, "user_encoder_loop_task", 2000, NULL, 2, NULL);
+  xTaskCreate(user_encoder_loop_task, "user_encoder_loop_task", 2048, NULL, 2, NULL);
   lv_disp_load_scr(ui_Screen5);
 
   show_message("Welcome...");
   add_dropdown_options(automata.getAutomations().c_str());
   // sd_card_list_files("/", 1);
+  // lv_example_video_play();
   Serial.println(ESP.getPsramSize());
-  lv_example_gif_1();
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  // lv_example_gif_1("S:/sdcard/loading_anim.gif");
 }
 bool alreadySet = false;
+
+void updateClock() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    Serial.println("Failed to obtain time");
+    return;
+  }
+
+  char timeString[10];
+  char dateString[20];
+
+  // Format strings
+  strftime(timeString, sizeof(timeString), "%I:%M %p", &timeinfo);  // 11:50 PM
+  strftime(dateString, sizeof(dateString), "%a, %b %d", &timeinfo); // Thu, Aug 28
+
+  // Update LVGL labels
+  lv_label_set_text(ui_timeText, timeString);
+  lv_label_set_text(ui_dateField, dateString);
+
+  // Debug print
+  Serial.print("Time: "); Serial.println(timeString);
+  Serial.print("Date: "); Serial.println(dateString);
+}
 
 void loop()
 {
@@ -825,6 +885,7 @@ void loop()
   if (changeDetected || (millis() - start) > 10000)
   {
     automata.sendLive(doc);
+    updateClock();
     // drv2605_play_effect(1); // Strong click
     // drv2605_play_effect(2);  // Sharp click
     // drv2605_play_effect(47); // Long strong buzz
@@ -839,7 +900,7 @@ void loop()
     JsonDocument doc;
     doc["action"] = actionNum;
     doc["key"] = "button";
-    drv2605_play_effect(47);
+    drv2605_play_effect(1);
     automata.sendAction(doc);
     Serial.print("action: ");
     Serial.println(actionNum);

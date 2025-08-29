@@ -15,6 +15,9 @@ extern void ui_Screen5_screen_init(void);
 extern void ui_Screen5_screen_destroy(void);
 extern void ui_event_Screen5(lv_event_t * e);
 extern lv_obj_t * ui_Screen5;
+extern lv_obj_t * ui_timeText;
+extern lv_obj_t * ui_dateField;
+extern lv_obj_t * ui_tempText;
 // CUSTOM VARIABLES
 
 #ifdef __cplusplus

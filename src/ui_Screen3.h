@@ -15,8 +15,6 @@ extern void ui_Screen3_screen_init(void);
 extern void ui_Screen3_screen_destroy(void);
 extern lv_obj_t * ui_Screen3;
 extern lv_obj_t * ui_Spinner3;
-extern lv_obj_t * ui_Panel1;
-extern lv_obj_t * ui_Panel2;
 extern lv_obj_t * ui_Label13;
 extern lv_obj_t * ui_Label15;
 extern lv_obj_t * ui_Label16;
