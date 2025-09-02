@@ -15,26 +15,15 @@ extern void ui_Screen1_screen_init(void);
 extern void ui_Screen1_screen_destroy(void);
 extern void ui_event_Screen1(lv_event_t * e);
 extern lv_obj_t * ui_Screen1;
-extern lv_obj_t * ui_power;
 extern lv_obj_t * ui_Arc1;
-extern lv_obj_t * ui_Arc2;
-extern lv_obj_t * ui_Arc3;
-extern lv_obj_t * ui_Arc4;
-extern lv_obj_t * ui_power1;
-extern lv_obj_t * ui_power2;
-extern lv_obj_t * ui_power3;
-extern lv_obj_t * ui_Label2;
-extern lv_obj_t * ui_Label3;
+extern void ui_event_Roller1(lv_event_t * e);
+extern lv_obj_t * ui_Roller1;
+extern void ui_event_Switch1(lv_event_t * e);
+extern lv_obj_t * ui_Switch1;
 extern lv_obj_t * ui_Label1;
-extern lv_obj_t * ui_Label4;
-extern lv_obj_t * ui_colorPNL;
-extern lv_obj_t * ui_Panel8;
-extern lv_obj_t * ui_Panel9;
-extern lv_obj_t * ui_Label5;
-extern lv_obj_t * ui_Label6;
-extern lv_obj_t * ui_Label7;
-extern lv_obj_t * ui_Label8;
-extern lv_obj_t * ui_Spinner1;
+extern void ui_event_Button11(lv_event_t * e);
+extern lv_obj_t * ui_Button11;
+extern lv_obj_t * ui_Label2;
 // CUSTOM VARIABLES
 
 #ifdef __cplusplus

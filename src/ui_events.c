@@ -74,3 +74,23 @@
 // {
 // 	// Your code here
 // }
+
+// void selectedScreen5_cb(lv_event_t * e)
+// {
+// 	// Your code here
+// }
+
+// void screen1btn_cb(lv_event_t * e)
+// {
+// 	// Your code here
+// }
+
+// void roller1_cb(lv_event_t * e)
+// {
+// 	// Your code here
+// }
+
+// void screen1_btn_send_cb(lv_event_t * e)
+// {
+// 	// Your code here
+// }

@@ -29,7 +29,7 @@ void ui_event_Screen6(lv_event_t * e)
 
     if(event_code == LV_EVENT_GESTURE &&  lv_indev_get_gesture_dir(lv_indev_get_act()) == LV_DIR_RIGHT) {
         lv_indev_wait_release(lv_indev_get_act());
-        _ui_screen_change(&ui_Screen4, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 500, 0, &ui_Screen4_screen_init);
+        _ui_screen_change(&ui_Screen4, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 10, 0, &ui_Screen4_screen_init);
     }
 }
 

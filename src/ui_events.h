@@ -10,7 +10,11 @@
 extern "C" {
 #endif
 
+void selectedScreen5_cb(lv_event_t * e);
 void selectedScreen1_cb(lv_event_t * e);
+void roller1_cb(lv_event_t * e);
+void screen1btn_cb(lv_event_t * e);
+void screen1_btn_send_cb(lv_event_t * e);
 void selectedScreen2_cb(lv_event_t * e);
 void sendAction1Click(lv_event_t * e);
 void sendAction2Click(lv_event_t * e);

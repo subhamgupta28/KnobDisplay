@@ -46,6 +46,15 @@ LV_IMG_DECLARE(ui_img_1086829539);    // assets/frame_000_delay-0.04s.png
 LV_IMG_DECLARE(ui_img_winter_png);    // assets/winter.png
 LV_IMG_DECLARE(ui_img_sunny_png);    // assets/sunny.png
 
+// FONTS
+LV_FONT_DECLARE(ui_font_monoton20);
+LV_FONT_DECLARE(ui_font_monoton26);
+LV_FONT_DECLARE(ui_font_monoton30);
+LV_FONT_DECLARE(ui_font_monoton32);
+LV_FONT_DECLARE(ui_font_monoton36);
+LV_FONT_DECLARE(ui_font_monoton40);
+LV_FONT_DECLARE(ui_font_monoton44);
+
 // UI INIT
 void ui_init(void);
 void ui_destroy(void);

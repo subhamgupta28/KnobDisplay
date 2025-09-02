@@ -13,11 +13,11 @@
 #include <Arduino.h>
 #include <time.h>
 #include "lcd/sd_card_bsp.h"
-#include "driver/temp_sensor.h"
-// const char* HOST = "192.168.1.7";
+
+const char *HOST = "192.168.29.53";
 // int PORT = 8080;
 
-const char *HOST = "raspberry.local";
+// const char *HOST = "raspberry.local";
 int PORT = 8010;
 Preferences preferences;
 Automata automata("KNOB", HOST, PORT);
@@ -35,26 +35,8 @@ uint8_t effect = 1;
 
 static lv_obj_t *meter;
 lv_meter_indicator_t *needle;
+static lv_obj_t *gif;
 
-static lv_obj_t *meter2;
-lv_meter_indicator_t *needle2;
-
-static lv_obj_t *meter3;
-lv_meter_indicator_t *needle3;
-
-static lv_obj_t *meter4;
-static lv_obj_t *meter5;
-lv_meter_indicator_t *needle4;
-
-typedef struct struct_message
-{
-  byte power;
-  byte red;
-  byte green;
-  byte blue;
-} struct_message;
-
-struct_message myData;
 int bright = 60;
 #define EXAMPLE_ENCODER_ECA_PIN 8
 #define EXAMPLE_ENCODER_ECB_PIN 7
@@ -89,7 +71,8 @@ int actionNum = 0;
 bool actionSend = false;
 String selectedAutomation = "";
 bool changeDetected = false;
-
+bool masterSendLive = false;
+String masterOption = "";
 static lv_obj_t *clock_meter;
 static lv_meter_indicator_t *hour_hand;
 static lv_meter_indicator_t *minute_hand;
@@ -147,8 +130,9 @@ void lv_example_gif_1(String path)
   // lv_obj_t *img = lv_img_create(ui_Screen5);
   // lv_img_set_src(img, "S:/sdcard/test0826.png");
   // lv_obj_center(img);
-  lv_obj_t *gif = lv_gif_create(ui_Screen5);
+  gif = lv_gif_create(ui_Screen5);
   lv_obj_center(gif);
+  lv_obj_set_pos(gif, 0, -75);
   lv_gif_set_src(gif, path.c_str());
   // lv_obj_move_foreground(gif);
 }
@@ -328,259 +312,66 @@ void sendAction5Click(lv_event_t *e)
   actionNum = 5;
   actionSend = true;
 }
+void screen1btn_cb(lv_event_t *e)
+{
 
+  lv_obj_t *sw = lv_event_get_target(e);
+
+  if (lv_obj_has_state(sw, LV_STATE_CHECKED))
+  {
+    masterSendLive = true;
+    Serial.printf("Switch turned ON\n");
+  }
+  else
+  {
+    masterSendLive = false;
+    Serial.printf("Switch turned OFF\n");
+  }
+}
+
+void roller1_cb(lv_event_t *e)
+{
+  lv_obj_t *roller = lv_event_get_target(e);
+
+  // Get the selected option index
+  uint16_t selected = lv_roller_get_selected(roller);
+
+  // Get the selected option text
+  char buf[64];
+  lv_roller_get_selected_str(roller, buf, sizeof(buf));
+
+  Serial.println(selected);
+  masterOption = String(buf);
+  Serial.println(buf);
+}
 byte value[4] = {25, 25, 25, 25}; // values of each meter 0= power, 1 =green , 2 red, 3 blue
 int chosen = 0;
-void set_active_meter(int index)
-{
-  // Resetiraj svim metrima border (sakrij)
-  lv_obj_set_style_border_width(meter, 0, LV_PART_MAIN);
-  lv_obj_set_style_border_width(meter2, 0, LV_PART_MAIN);
-  lv_obj_set_style_border_width(meter3, 0, LV_PART_MAIN);
-  lv_obj_set_style_border_width(meter4, 0, LV_PART_MAIN);
-
-  // Postavi aktivnom metru border
-  switch (index)
-  {
-  case 0:
-    lv_obj_set_style_border_width(meter, 2, LV_PART_MAIN);
-    lv_obj_set_style_border_color(meter, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
-    break;
-  case 1:
-    lv_obj_set_style_border_width(meter2, 2, LV_PART_MAIN);
-    lv_obj_set_style_border_color(meter2, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
-    break;
-  case 3:
-    lv_obj_set_style_border_width(meter4, 2, LV_PART_MAIN);
-    lv_obj_set_style_border_color(meter4, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
-    break;
-  case 2:
-    lv_obj_set_style_border_width(meter3, 2, LV_PART_MAIN);
-    lv_obj_set_style_border_color(meter3, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
-    break;
-  }
-}
-void meter_event_cb(lv_event_t *e)
-{
-  if (lv_event_get_code(e) == LV_EVENT_CLICKED)
-  {
-    chosen = 0;
-    set_active_meter(chosen);
-  }
-}
-void meter2_event_cb(lv_event_t *e)
-{
-  if (lv_event_get_code(e) == LV_EVENT_CLICKED)
-  {
-    chosen = 1;
-    set_active_meter(chosen);
-  }
-}
-void meter3_event_cb(lv_event_t *e)
-{
-  if (lv_event_get_code(e) == LV_EVENT_CLICKED)
-  {
-    chosen = 2;
-    set_active_meter(chosen);
-  }
-}
-void meter4_event_cb(lv_event_t *e)
-{
-  if (lv_event_get_code(e) == LV_EVENT_CLICKED)
-  {
-    chosen = 3;
-    set_active_meter(chosen);
-  }
-}
 
 void selectedScreen1_cb(lv_event_t *e)
 {
   selectedScreen = 1;
+  changeDetected = true;
 }
 
 void selectedScreen2_cb(lv_event_t *e)
 {
   selectedScreen = 2;
+  changeDetected = true;
 }
 
 void selectedScreen4_cb(lv_event_t *e)
 {
   selectedScreen = 4;
+  changeDetected = true;
+}
+void selectedScreen5_cb(lv_event_t *e)
+{
+  selectedScreen = 5;
+  changeDetected = true;
 }
 static void anim_set_meter_value(void *obj, int32_t v)
 {
   lv_meter_set_indicator_value(meter, needle, v);
-}
-void lv_example_meter_1(void)
-{
-  extern lv_obj_t *ui_Screen1;
-  meter = lv_meter_create(ui_Screen1);
-  lv_obj_add_event_cb(meter, meter_event_cb, LV_EVENT_ALL, NULL);
-  lv_obj_center(meter);
-  lv_obj_set_size(meter, 200, 200);
-  lv_obj_set_pos(meter, -71, 0);
-  lv_obj_set_style_bg_opa(meter, LV_OPA_TRANSP, LV_PART_MAIN);
-  lv_obj_set_style_border_width(meter, 0, LV_PART_MAIN);
-
-  /*Add a scale first*/
-  lv_meter_scale_t *scale = lv_meter_add_scale(meter);
-  lv_meter_set_scale_range(meter, scale, 0, 100, 270, 135); // Set range from 0 to 10
-  lv_meter_set_scale_ticks(meter, scale, 31, 3, 10, lv_palette_main(LV_PALETTE_GREY));
-  lv_meter_set_scale_major_ticks(meter, scale, 6, 5, 15, lv_color_white(), 10);
-
-  lv_meter_indicator_t *indic;
-
-  /*Add a blue arc to the start*/
-  // indic = lv_meter_add_arc(meter, scale, 3, lv_palette_main(LV_PALETTE_LIME), 0);
-  // lv_meter_set_indicator_start_value(meter, indic, 0);
-  // lv_meter_set_indicator_end_value(meter, indic, 20);
-
-  // /*Make the tick lines blue at the start of the scale*/
-  // indic = lv_meter_add_scale_lines(meter, scale, lv_palette_main(LV_PALETTE_LIME), lv_palette_main(LV_PALETTE_LIME), false, 0);
-  // lv_meter_set_indicator_start_value(meter, indic, 0);
-  // lv_meter_set_indicator_end_value(meter, indic, 20);
-
-  // /*Add a red arc to the end*/
-  // indic = lv_meter_add_arc(meter, scale, 3, lv_palette_main(LV_PALETTE_RED), 0);
-  // lv_meter_set_indicator_start_value(meter, indic, 80);
-  // lv_meter_set_indicator_end_value(meter, indic, 100);
-
-  // /*Make the tick lines red at the end of the scale*/
-  // indic = lv_meter_add_scale_lines(meter, scale, lv_palette_main(LV_PALETTE_RED), lv_palette_main(LV_PALETTE_RED), false, 0);
-  // lv_meter_set_indicator_start_value(meter, indic, 80);
-  // lv_meter_set_indicator_end_value(meter, indic, 100);
-
-  /*Add a needle line indicator*/
-  needle = lv_meter_add_needle_line(meter, scale, 4, lv_color_hex(0xFFFFFF), -10);
-}
-
-void lv_example_meter_2(void)
-{
-  extern lv_obj_t *ui_Screen1;
-  meter2 = lv_meter_create(ui_Screen1);
-  lv_obj_add_event_cb(meter2, meter2_event_cb, LV_EVENT_ALL, NULL);
-  lv_obj_center(meter2);
-  lv_obj_set_size(meter2, 146, 146);
-  lv_obj_set_pos(meter2, 109, 0);
-  lv_obj_set_style_bg_opa(meter2, LV_OPA_TRANSP, LV_PART_MAIN);
-  lv_obj_set_style_border_width(meter2, 0, LV_PART_MAIN);
-
-  /*Add a scale first*/
-  lv_meter_scale_t *scale = lv_meter_add_scale(meter2);
-  lv_meter_set_scale_range(meter2, scale, 0, 100, 270, 135); // Set range from 0 to 10
-  lv_meter_set_scale_ticks(meter2, scale, 31, 2, 8, lv_palette_main(LV_PALETTE_GREY));
-  lv_meter_set_scale_major_ticks(meter2, scale, 6, 3, 11, lv_color_white(), 10);
-
-  lv_meter_indicator_t *indic;
-
-  /*Add a blue arc to the start*/
-  // indic = lv_meter_add_arc(meter2, scale, 3, lv_palette_main(LV_PALETTE_LIME), 0);
-  // lv_meter_set_indicator_start_value(meter2, indic, 0);
-  // lv_meter_set_indicator_end_value(meter2, indic, 20);
-
-  // /*Make the tick lines blue at the start of the scale*/
-  // indic = lv_meter_add_scale_lines(meter2, scale, lv_palette_main(LV_PALETTE_LIME), lv_palette_main(LV_PALETTE_LIME), false, 0);
-  // lv_meter_set_indicator_start_value(meter2, indic, 0);
-  // lv_meter_set_indicator_end_value(meter2, indic, 20);
-
-  // /*Add a red arc to the end*/
-  // indic = lv_meter_add_arc(meter2, scale, 3, lv_palette_main(LV_PALETTE_RED), 0);
-  // lv_meter_set_indicator_start_value(meter2, indic, 80);
-  // lv_meter_set_indicator_end_value(meter2, indic, 100);
-
-  // /*Make the tick lines red at the end of the scale*/
-  // indic = lv_meter_add_scale_lines(meter2, scale, lv_palette_main(LV_PALETTE_RED), lv_palette_main(LV_PALETTE_RED), false, 0);
-  // lv_meter_set_indicator_start_value(meter2, indic, 80);
-  // lv_meter_set_indicator_end_value(meter2, indic, 100);
-
-  /*Add a needle line indicator*/
-  needle2 = lv_meter_add_needle_line(meter2, scale, 3, lv_color_hex(0xFFFFFF), -10);
-}
-
-void lv_example_meter_3(void)
-{
-  extern lv_obj_t *ui_Screen1;
-  meter3 = lv_meter_create(ui_Screen1);
-  lv_obj_add_event_cb(meter3, meter3_event_cb, LV_EVENT_ALL, NULL);
-  lv_obj_center(meter3);
-  lv_obj_set_size(meter3, 128, 128);
-  lv_obj_set_pos(meter3, 43, -107);
-  lv_obj_set_style_bg_opa(meter3, LV_OPA_TRANSP, LV_PART_MAIN);
-  lv_obj_set_style_border_width(meter3, 0, LV_PART_MAIN);
-
-  /*Add a scale first*/
-  lv_meter_scale_t *scale = lv_meter_add_scale(meter3);
-  lv_meter_set_scale_range(meter3, scale, 0, 100, 270, 135); // Set range from 0 to 10
-  lv_meter_set_scale_ticks(meter3, scale, 31, 1, 6, lv_palette_main(LV_PALETTE_GREY));
-  lv_meter_set_scale_major_ticks(meter3, scale, 6, 2, 10, lv_color_white(), 10);
-
-  lv_meter_indicator_t *indic;
-
-  /*Add a blue arc to the start*/
-  // indic = lv_meter_add_arc(meter3, scale, 3, lv_palette_main(LV_PALETTE_LIME), 0);
-  // lv_meter_set_indicator_start_value(meter3, indic, 0);
-  // lv_meter_set_indicator_end_value(meter3, indic, 20);
-
-  // /*Make the tick lines blue at the start of the scale*/
-  // indic = lv_meter_add_scale_lines(meter3, scale, lv_palette_main(LV_PALETTE_LIME), lv_palette_main(LV_PALETTE_LIME), false, 0);
-  // lv_meter_set_indicator_start_value(meter3, indic, 0);
-  // lv_meter_set_indicator_end_value(meter3, indic, 20);
-
-  // /*Add a red arc to the end*/
-  // indic = lv_meter_add_arc(meter3, scale, 3, lv_palette_main(LV_PALETTE_RED), 0);
-  // lv_meter_set_indicator_start_value(meter3, indic, 80);
-  // lv_meter_set_indicator_end_value(meter3, indic, 100);
-
-  // /*Make the tick lines red at the end of the scale*/
-  // indic = lv_meter_add_scale_lines(meter3, scale, lv_palette_main(LV_PALETTE_RED), lv_palette_main(LV_PALETTE_RED), false, 0);
-  // lv_meter_set_indicator_start_value(meter3, indic, 80);
-  // lv_meter_set_indicator_end_value(meter3, indic, 100);
-
-  /*Add a needle line indicator*/
-  needle3 = lv_meter_add_needle_line(meter3, scale, 3, lv_color_hex(0xFFFFFF), -10);
-}
-
-void lv_example_meter_4(void)
-{
-  extern lv_obj_t *ui_Screen1;
-  meter4 = lv_meter_create(ui_Screen1);
-  lv_obj_add_event_cb(meter4, meter4_event_cb, LV_EVENT_ALL, NULL);
-  lv_obj_center(meter4);
-  lv_obj_set_size(meter4, 128, 128);
-  lv_obj_set_pos(meter4, 43, 107);
-  lv_obj_set_style_bg_opa(meter4, LV_OPA_TRANSP, LV_PART_MAIN);
-  lv_obj_set_style_border_width(meter4, 0, LV_PART_MAIN);
-
-  /*Add a scale first*/
-  lv_meter_scale_t *scale = lv_meter_add_scale(meter4);
-  lv_meter_set_scale_range(meter4, scale, 0, 100, 270, 135); // Set range from 0 to 10
-  lv_meter_set_scale_ticks(meter4, scale, 31, 1, 6, lv_palette_main(LV_PALETTE_GREY));
-  lv_meter_set_scale_major_ticks(meter4, scale, 6, 2, 10, lv_color_white(), 10);
-
-  lv_meter_indicator_t *indic;
-
-  /*Add a blue arc to the start*/
-  // indic = lv_meter_add_arc(meter4, scale, 3, lv_palette_main(LV_PALETTE_LIME), 0);
-  // lv_meter_set_indicator_start_value(meter4, indic, 0);
-  // lv_meter_set_indicator_end_value(meter4, indic, 20);
-
-  // /*Make the tick lines blue at the start of the scale*/
-  // indic = lv_meter_add_scale_lines(meter4, scale, lv_palette_main(LV_PALETTE_LIME), lv_palette_main(LV_PALETTE_LIME), false, 0);
-  // lv_meter_set_indicator_start_value(meter4, indic, 0);
-  // lv_meter_set_indicator_end_value(meter4, indic, 20);
-
-  // /*Add a red arc to the end*/
-  // indic = lv_meter_add_arc(meter4, scale, 3, lv_palette_main(LV_PALETTE_RED), 0);
-  // lv_meter_set_indicator_start_value(meter4, indic, 80);
-  // lv_meter_set_indicator_end_value(meter4, indic, 100);
-
-  // /*Make the tick lines red at the end of the scale*/
-  // indic = lv_meter_add_scale_lines(meter4, scale, lv_palette_main(LV_PALETTE_RED), lv_palette_main(LV_PALETTE_RED), false, 0);
-  // lv_meter_set_indicator_start_value(meter4, indic, 80);
-  // lv_meter_set_indicator_end_value(meter4, indic, 100);
-
-  /*Add a needle line indicator*/
-  needle4 = lv_meter_add_needle_line(meter4, scale, 3, lv_color_hex(0xFFFFFF), -10);
 }
 
 void add_dropdown_options(const char *new_data)
@@ -614,9 +405,6 @@ static void _knob_right_cb(void *arg, void *data)
   xEventGroupSetBits(knob_even_, eventBits_);
 }
 
-bool shoot = false;
-int pos = -96;
-
 static void user_encoder_loop_task(void *arg)
 {
 
@@ -627,15 +415,11 @@ static void user_encoder_loop_task(void *arg)
     {
       if (xSemaphoreTake(mutex, portMAX_DELAY))
       {
-        if (value[chosen] > 0)
-          value[chosen] = value[chosen] - 2;
-
-        myData.power = value[0];
-        myData.red = map(value[2], 0, 100, 0, 255);
-        myData.blue = map(value[3], 0, 100, 0, 255);
-        myData.green = map(value[1], 0, 100, 0, 255);
+        if (encPos > 0)
+          encPos = encPos - 5;
+        if (encPos < 0)
+          encPos = 0;
         changeDetected = true;
-        encPos = value[chosen];
         drv2605_play_effect(1);
         xSemaphoreGive(mutex);
       }
@@ -645,14 +429,9 @@ static void user_encoder_loop_task(void *arg)
     {
       if (xSemaphoreTake(mutex, portMAX_DELAY))
       {
-        value[chosen] = value[chosen] + 2;
-        if (value[chosen] > 100)
-          value[chosen] = 100;
-        myData.power = value[0];
-        myData.red = map(value[2], 0, 100, 0, 255);
-        myData.blue = map(value[3], 0, 100, 0, 255);
-        myData.green = map(value[1], 0, 100, 0, 255);
-        encPos = value[chosen];
+        encPos = encPos + 5;
+        if (encPos > 255)
+          encPos = 255;
         changeDetected = true;
         drv2605_play_effect(1);
         xSemaphoreGive(mutex);
@@ -661,6 +440,22 @@ static void user_encoder_loop_task(void *arg)
     }
     vTaskDelay(100);
   }
+}
+
+void add_rolloer_data()
+{
+  MasterDataList list = automata.getMasterDataList();
+  String rollerOptions = "";
+  int j = 0;
+  for (auto item : list)
+  {
+    rollerOptions += item.name;
+    if (j < list.size() - 1)
+      rollerOptions += "\n"; // newline-separated options
+    j++;
+  }
+
+  lv_roller_set_options(ui_Roller1, rollerOptions.c_str(), LV_ROLLER_MODE_NORMAL);
 }
 
 static void example_lvgl_port_task(void *arg)
@@ -673,40 +468,22 @@ static void example_lvgl_port_task(void *arg)
     if (xSemaphoreTake(mutex, portMAX_DELAY))
     {
 
-      lv_label_set_text(ui_power, String(value[0]).c_str());
-      lv_meter_set_indicator_value(meter, needle, value[0]);
-      lv_arc_set_value(ui_Arc1, value[0]);
-
-      lv_label_set_text(ui_power1, String(value[1]).c_str());
-      lv_meter_set_indicator_value(meter2, needle2, value[1]);
-      lv_arc_set_value(ui_Arc2, value[1]);
-
-      lv_label_set_text(ui_power3, String(value[2]).c_str());
-      lv_meter_set_indicator_value(meter3, needle3, value[2]);
-      lv_arc_set_value(ui_Arc3, value[2]);
-
-      lv_label_set_text(ui_power2, String(value[3]).c_str());
-      lv_meter_set_indicator_value(meter4, needle4, value[3]);
-      lv_arc_set_value(ui_Arc4, value[3]);
-
-      // lv_label_set_text(ui_power2, String(value[3]).c_str());
-      // lv_meter_set_indicator_value(meter5, needle4, value[3]);
-
       lv_label_set_text(ui_Label25, String(encPos).c_str());
       lv_arc_set_value(ui_Arc5, encPos);
-
-      if ((millis() - st) > 60000)
+      lv_arc_set_value(ui_Arc1, encPos);
+      if ((millis() - st) > 120000)
       {
+        add_rolloer_data();
         add_dropdown_options(automata.getAutomations().c_str());
         st = millis();
         // Start vibration
       }
-      lv_color_t color = lv_color_make(map(value[2], 0, 100, 0, 255), map(value[1], 0, 100, 0, 255), map(value[3], 0, 100, 0, 255));
-      lv_obj_set_style_bg_color(ui_colorPNL, color, LV_PART_MAIN);
+      // lv_color_t color = lv_color_make(map(value[2], 0, 100, 0, 255), map(value[1], 0, 100, 0, 255), map(value[3], 0, 100, 0, 255));
+      // lv_obj_set_style_bg_color(ui_colorPNL, color, LV_PART_MAIN);
 
       xSemaphoreGive(mutex);
     }
-    vTaskDelay(pdMS_TO_TICKS(100));
+    vTaskDelay(pdMS_TO_TICKS(10));
   }
 }
 
@@ -730,9 +507,8 @@ void show_message(const char *msg)
   lv_obj_del(label);
 }
 
-
-#define FRAME_INTERVAL 200   // 100 ms per frame = 10 FPS
-#define NUM_FRAMES     144    // Number of frames you have
+#define FRAME_INTERVAL 200 // 100 ms per frame = 10 FPS
+#define NUM_FRAMES 144     // Number of frames you have
 
 static lv_obj_t *frame_obj;
 static int current_frame = 0;
@@ -743,55 +519,54 @@ static char path[64];
 
 static void show_next_frame(void *arg)
 {
-  //frame_113_delay-0.04s
-    snprintf(path, sizeof(path), "S:/sdcard/frame_%03d_delay-0.04s.png", current_frame);
-    printf("Loading frame: %s\n", path);
+  // frame_113_delay-0.04s
+  snprintf(path, sizeof(path), "S:/sdcard/frame_%03d_delay-0.04s.png", current_frame);
+  printf("Loading frame: %s\n", path);
 
-    lv_img_set_src(frame_obj, path);
-    lv_obj_center(frame_obj);
+  lv_img_set_src(frame_obj, path);
+  lv_obj_center(frame_obj);
 
-    current_frame++;
-    if (current_frame >= NUM_FRAMES) {
-        current_frame = 0;  // loop
-    }
+  current_frame++;
+  if (current_frame >= NUM_FRAMES)
+  {
+    current_frame = 0; // loop
+  }
 }
 
 void lv_example_video_play(void)
 {
-    // Create image object
-    frame_obj = lv_img_create(ui_Screen5);
-    lv_obj_center(frame_obj);
+  // Create image object
+  frame_obj = lv_img_create(ui_Screen5);
+  lv_obj_center(frame_obj);
 
-    // Start timer
-    const esp_timer_create_args_t frame_timer_args = {
-        .callback = &show_next_frame,
-        .name = "frame_timer"
-    };
-    ESP_ERROR_CHECK(esp_timer_create(&frame_timer_args, &frame_timer));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(frame_timer, FRAME_INTERVAL * 1000));
+  // Start timer
+  const esp_timer_create_args_t frame_timer_args = {
+      .callback = &show_next_frame,
+      .name = "frame_timer"};
+  ESP_ERROR_CHECK(esp_timer_create(&frame_timer_args, &frame_timer));
+  ESP_ERROR_CHECK(esp_timer_start_periodic(frame_timer, FRAME_INTERVAL * 1000));
 }
-const char* ntpServer = "pool.ntp.org";
-const long  gmtOffset_sec = 19800;   // 5h 30m in seconds
-const int   daylightOffset_sec = 0;  // No DST
+const char *ntpServer = "pool.ntp.org";
+const long gmtOffset_sec = 19800; // 5h 30m in seconds
+const int daylightOffset_sec = 0; // No DST
 void setup()
 {
   mutex = xSemaphoreCreateMutex();
   Serial.begin(115200);
-  delay(2000);
   Touch_Init();
   lcd_lvgl_Init();
   sd_card_Init(); // Mounts at /sdcard
   lv_fs_sd_init();
 
-  lv_example_meter_1();
-  lv_example_meter_2();
-  lv_example_meter_3();
-  lv_example_meter_4();
+  // lv_example_meter_1();
+  // lv_example_meter_2();
+  // lv_example_meter_3();
+  // lv_example_meter_4();
   // lv_example_clock();
 
   add_dropdown_options("A1,A2,A3");
   Serial.println("starting");
-  set_active_meter(chosen);
+  // set_active_meter(chosen);
   lcd_bl_pwm_bsp_init(bright);
   if (drv2605_init() == ESP_OK)
   {
@@ -805,17 +580,13 @@ void setup()
   preferences.begin("bat", false);
   automata.begin();
   automata.addAttribute("encoder1", "Encoder 1", "", "DATA|MAIN");
-  automata.addAttribute("encoder2", "Encoder 2", "", "DATA|MAIN");
-  automata.addAttribute("encoder3", "Encoder 3", "", "DATA|MAIN");
-  automata.addAttribute("encoder4", "Encoder 4", "", "DATA|MAIN");
-  automata.addAttribute("screen", "Screen", "", "DATA|AUX");
-  automata.addAttribute("chosen", "Chosen", "", "DATA|MAIN");
+  automata.addAttribute("screen", "Screen", "", "DATA|MAIN");
   automata.addAttribute("action", "Action", "", "ACTION|IN");
   JsonDocument doc;
   doc["max"] = 255;
   doc["min"] = 0;
-  automata.addAttribute("bright", "Brightness", "", "ACTION|SLIDER", doc);
-  automata.addAttribute("battery_volt", "Battery", "V", "DATA|MAIN");
+  automata.addAttribute("bright", "Brightness", "", "ACTION|MENU|SLIDER", doc);
+  automata.addAttribute("battery_volt", "Battery", "V", "DATA|AUX");
   show_message("Setting attributes...");
   automata.registerDevice();
   automata.onActionReceived(action);
@@ -841,13 +612,15 @@ void setup()
   // lv_example_video_play();
   Serial.println(ESP.getPsramSize());
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  // lv_example_gif_1("S:/sdcard/loading_anim.gif");
+  // lv_example_gif_1("S:/sdcard/loading_anim_h.gif");
 }
 bool alreadySet = false;
 
-void updateClock() {
+void updateClock()
+{
   struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) {
+  if (!getLocalTime(&timeinfo))
+  {
     Serial.println("Failed to obtain time");
     return;
   }
@@ -864,17 +637,35 @@ void updateClock() {
   lv_label_set_text(ui_dateField, dateString);
 
   // Debug print
-  Serial.print("Time: "); Serial.println(timeString);
-  Serial.print("Date: "); Serial.println(dateString);
+  // Serial.print("Time: ");
+  // Serial.println(timeString);
+  // Serial.print("Date: ");
+  // Serial.println(dateString);
 }
 
+int msd = millis();
+void sendMasterAction()
+{
+  String id, key;
+  if (automata.getMasterDeviceByName(masterOption.c_str(), id, key))
+  {
+    JsonDocument doc;
+    doc["screen"] = selectedScreen;
+    doc["type"] = "master";
+    doc["value"] = encPos;
+    doc["deviceId"] = id;
+    doc["key"] = key;
+    drv2605_play_effect(1);
+    automata.sendAction(doc);
+  }
+}
+void screen1_btn_send_cb(lv_event_t *e)
+{
+  sendMasterAction();
+}
 void loop()
 {
-  doc["encoder1"] = myData.power;
-  doc["encoder2"] = myData.green;
-  doc["encoder3"] = myData.blue;
-  doc["encoder4"] = myData.red;
-  doc["chosen"] = chosen;
+  doc["encoder1"] = encPos;
   doc["screen"] = selectedScreen;
   doc["bright"] = bright;
   float bt = ((analogRead(1) * 2 * 3.3 * 1000) / 4096) / 1000;
@@ -884,12 +675,24 @@ void loop()
 
   if (changeDetected || (millis() - start) > 10000)
   {
-    automata.sendLive(doc);
+    if (masterSendLive)
+    {
+      Serial.println("live data sent");
+      drv2605_play_effect(47);
+      sendMasterAction();
+    }
+    else
+    {
+      automata.sendLive(doc);
+    }
+
+    // automata.getMasterList();
     updateClock();
     // drv2605_play_effect(1); // Strong click
     // drv2605_play_effect(2);  // Sharp click
     // drv2605_play_effect(47); // Long strong buzz
     // drv2605_play_effect(12); // Double strong click
+
     start = millis();
     // Start vibration
     changeDetected = false;

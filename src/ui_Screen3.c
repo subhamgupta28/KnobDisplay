@@ -39,10 +39,10 @@ void ui_Screen3_screen_init(void)
     lv_obj_set_width(ui_Label13, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_Label13, LV_SIZE_CONTENT);    /// 1
     lv_obj_set_x(ui_Label13, 0);
-    lv_obj_set_y(ui_Label13, 120);
+    lv_obj_set_y(ui_Label13, 130);
     lv_obj_set_align(ui_Label13, LV_ALIGN_CENTER);
     lv_label_set_text(ui_Label13, "Smart Knob");
-    lv_obj_set_style_text_font(ui_Label13, &lv_font_montserrat_20, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Label13, &ui_font_monoton26, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_Label15 = lv_label_create(ui_Screen3);
     lv_obj_set_width(ui_Label15, LV_SIZE_CONTENT);   /// 1
@@ -51,7 +51,7 @@ void ui_Screen3_screen_init(void)
     lv_obj_set_y(ui_Label15, 90);
     lv_obj_set_align(ui_Label15, LV_ALIGN_CENTER);
     lv_label_set_text(ui_Label15, "Automata");
-    lv_obj_set_style_text_font(ui_Label15, &lv_font_montserrat_20, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Label15, &ui_font_monoton30, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_Label16 = lv_label_create(ui_Screen3);
     lv_obj_set_width(ui_Label16, LV_SIZE_CONTENT);   /// 1
