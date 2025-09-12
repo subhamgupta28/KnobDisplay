@@ -14,10 +14,10 @@
 #include <time.h>
 #include "lcd/sd_card_bsp.h"
 
-const char *HOST = "192.168.29.53";
+// const char *HOST = "192.168.29.53";
 // int PORT = 8080;
 
-// const char *HOST = "raspberry.local";
+const char *HOST = "raspberry.local";
 int PORT = 8010;
 Preferences preferences;
 Automata automata("KNOB", HOST, PORT);
@@ -40,7 +40,9 @@ static lv_obj_t *gif;
 int bright = 60;
 #define EXAMPLE_ENCODER_ECA_PIN 8
 #define EXAMPLE_ENCODER_ECB_PIN 7
-
+unsigned long lastEncoderMove = 0;
+bool encoderMoving = false;
+const unsigned long ENCODER_IDLE_TIMEOUT = 400; // ms
 #define SET_BIT(reg, bit) (reg |= ((uint32_t)0x01 << bit))
 #define CLEAR_BIT(reg, bit) (reg &= (~((uint32_t)0x01 << bit)))
 #define READ_BIT(reg, bit) (((uint32_t)reg >> bit) & 0x01)
@@ -407,37 +409,45 @@ static void _knob_right_cb(void *arg, void *data)
 
 static void user_encoder_loop_task(void *arg)
 {
-
   for (;;)
   {
     EventBits_t even = xEventGroupWaitBits(knob_even_, BIT_EVEN_ALL, pdTRUE, pdFALSE, pdMS_TO_TICKS(50));
-    if (READ_BIT(even, 0))
+
+    if (READ_BIT(even, 0)) // left
     {
       if (xSemaphoreTake(mutex, portMAX_DELAY))
       {
         if (encPos > 0)
-          encPos = encPos - 5;
+          encPos -= 5;
         if (encPos < 0)
           encPos = 0;
         changeDetected = true;
         drv2605_play_effect(1);
+
+        lastEncoderMove = millis();
+        encoderMoving = true;
+
         xSemaphoreGive(mutex);
       }
-      // vibrateStrong2Sec();
     }
-    if (READ_BIT(even, 1))
+
+    if (READ_BIT(even, 1)) // right
     {
       if (xSemaphoreTake(mutex, portMAX_DELAY))
       {
-        encPos = encPos + 5;
+        encPos += 5;
         if (encPos > 255)
           encPos = 255;
         changeDetected = true;
         drv2605_play_effect(1);
+
+        lastEncoderMove = millis();
+        encoderMoving = true;
+
         xSemaphoreGive(mutex);
       }
-      // vibrateStrong2Sec();
     }
+
     vTaskDelay(100);
   }
 }
@@ -471,7 +481,7 @@ static void example_lvgl_port_task(void *arg)
       lv_label_set_text(ui_Label25, String(encPos).c_str());
       lv_arc_set_value(ui_Arc5, encPos);
       lv_arc_set_value(ui_Arc1, encPos);
-      if ((millis() - st) > 120000)
+      if ((millis() - st) > 60000)
       {
         add_rolloer_data();
         add_dropdown_options(automata.getAutomations().c_str());
@@ -604,6 +614,8 @@ void setup()
   iot_knob_register_cb(s_knob, KNOB_LEFT, _knob_left_cb, NULL);
   iot_knob_register_cb(s_knob, KNOB_RIGHT, _knob_right_cb, NULL);
   xTaskCreate(user_encoder_loop_task, "user_encoder_loop_task", 2048, NULL, 2, NULL);
+
+
   lv_disp_load_scr(ui_Screen5);
 
   show_message("Welcome...");
@@ -613,6 +625,7 @@ void setup()
   Serial.println(ESP.getPsramSize());
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   // lv_example_gif_1("S:/sdcard/loading_anim_h.gif");
+  add_rolloer_data();
 }
 bool alreadySet = false;
 
@@ -673,18 +686,18 @@ void loop()
   doc["battery_volt"] = String(bt, 2);
   automata.loop();
 
+  if (masterSendLive && encoderMoving && (millis() - lastEncoderMove > ENCODER_IDLE_TIMEOUT))
+  {
+    sendMasterAction(); // call your function
+    Serial.println("live data sent");
+    drv2605_play_effect(47);
+    encoderMoving = false;
+  }
+
   if (changeDetected || (millis() - start) > 10000)
   {
-    if (masterSendLive)
-    {
-      Serial.println("live data sent");
-      drv2605_play_effect(47);
-      sendMasterAction();
-    }
-    else
-    {
-      automata.sendLive(doc);
-    }
+
+    automata.sendLive(doc);
 
     // automata.getMasterList();
     updateClock();

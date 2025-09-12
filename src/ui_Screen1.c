@@ -68,12 +68,13 @@ void ui_Screen1_screen_init(void)
     lv_obj_set_style_bg_grad_dir(ui_Screen1, LV_GRAD_DIR_VER, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_Arc1 = lv_arc_create(ui_Screen1);
-    lv_obj_set_width(ui_Arc1, 330);
-    lv_obj_set_height(ui_Arc1, 330);
+    lv_obj_set_width(ui_Arc1, 355);
+    lv_obj_set_height(ui_Arc1, 355);
     lv_obj_set_align(ui_Arc1, LV_ALIGN_CENTER);
     lv_obj_clear_flag(ui_Arc1, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
     lv_arc_set_range(ui_Arc1, 0, 255);
     lv_arc_set_value(ui_Arc1, 0);
+    lv_arc_set_bg_angles(ui_Arc1, 140, 40);
 
     lv_obj_set_style_arc_color(ui_Arc1, lv_color_hex(0xFFFFFF), LV_PART_INDICATOR | LV_STATE_DEFAULT);
     lv_obj_set_style_arc_opa(ui_Arc1, 255, LV_PART_INDICATOR | LV_STATE_DEFAULT);
@@ -82,7 +83,7 @@ void ui_Screen1_screen_init(void)
     lv_obj_set_style_bg_opa(ui_Arc1, 0, LV_PART_KNOB | LV_STATE_DEFAULT);
 
     ui_Roller1 = lv_roller_create(ui_Screen1);
-    lv_roller_set_options(ui_Roller1, "Option 1\nOption 2\nOption 3", LV_ROLLER_MODE_NORMAL);
+    lv_roller_set_options(ui_Roller1, "Loading...", LV_ROLLER_MODE_NORMAL);
     lv_obj_set_width(ui_Roller1, 190);
     lv_obj_set_height(ui_Roller1, 120);
     lv_obj_set_x(ui_Roller1, 0);
@@ -100,15 +101,17 @@ void ui_Screen1_screen_init(void)
     lv_obj_set_style_border_width(ui_Roller1, 1, LV_PART_SELECTED | LV_STATE_DEFAULT);
 
     ui_Switch1 = lv_switch_create(ui_Screen1);
-    lv_obj_set_width(ui_Switch1, 50);
-    lv_obj_set_height(ui_Switch1, 25);
+    lv_obj_set_width(ui_Switch1, 80);
+    lv_obj_set_height(ui_Switch1, 40);
     lv_obj_set_x(ui_Switch1, 0);
-    lv_obj_set_y(ui_Switch1, -30);
+    lv_obj_set_y(ui_Switch1, -50);
     lv_obj_set_align(ui_Switch1, LV_ALIGN_CENTER);
 
     ui_Label1 = lv_label_create(ui_Screen1);
     lv_obj_set_width(ui_Label1, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_Label1, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_Label1, 0);
+    lv_obj_set_y(ui_Label1, -10);
     lv_obj_set_align(ui_Label1, LV_ALIGN_CENTER);
     lv_label_set_text(ui_Label1, "Send Live");
 
@@ -116,7 +119,7 @@ void ui_Screen1_screen_init(void)
     lv_obj_set_width(ui_Button11, 100);
     lv_obj_set_height(ui_Button11, 40);
     lv_obj_set_x(ui_Button11, 0);
-    lv_obj_set_y(ui_Button11, -80);
+    lv_obj_set_y(ui_Button11, -100);
     lv_obj_set_align(ui_Button11, LV_ALIGN_CENTER);
     lv_obj_set_style_bg_color(ui_Button11, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_Button11, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -125,7 +128,7 @@ void ui_Screen1_screen_init(void)
     lv_obj_set_width(ui_Label2, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_Label2, LV_SIZE_CONTENT);    /// 1
     lv_obj_set_x(ui_Label2, 0);
-    lv_obj_set_y(ui_Label2, -80);
+    lv_obj_set_y(ui_Label2, -100);
     lv_obj_set_align(ui_Label2, LV_ALIGN_CENTER);
     lv_label_set_text(ui_Label2, "Send");
     lv_obj_set_style_text_color(ui_Label2, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
