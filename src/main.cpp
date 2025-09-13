@@ -13,14 +13,18 @@
 #include <Arduino.h>
 #include <time.h>
 #include "lcd/sd_card_bsp.h"
+#include "AutomataAddOn.h"
 
 // const char *HOST = "192.168.29.53";
 // int PORT = 8080;
 
 const char *HOST = "raspberry.local";
 int PORT = 8010;
+
+
 Preferences preferences;
 Automata automata("KNOB", HOST, PORT);
+AutomataAddOn automataAddOn(HOST, PORT);
 long d = 8000;
 long st = millis();
 unsigned long startMillis;
@@ -297,7 +301,7 @@ void sendOptionSelect(lv_event_t *e)
 void runbtnClick(lv_event_t *e)
 {
   JsonDocument doc;
-  doc["id"] = automata.getAutomationId(selectedAutomation);
+  doc["id"] = automataAddOn.getAutomationId(selectedAutomation);
   doc["key"] = "id";
   doc["automation"] = true;
 
@@ -454,7 +458,7 @@ static void user_encoder_loop_task(void *arg)
 
 void add_rolloer_data()
 {
-  MasterDataList list = automata.getMasterDataList();
+  MasterDataList list = automataAddOn.getMasterDataList();
   String rollerOptions = "";
   int j = 0;
   for (auto item : list)
@@ -484,7 +488,7 @@ static void example_lvgl_port_task(void *arg)
       if ((millis() - st) > 60000)
       {
         add_rolloer_data();
-        add_dropdown_options(automata.getAutomations().c_str());
+        add_dropdown_options(automataAddOn.getAutomations().c_str());
         st = millis();
         // Start vibration
       }
@@ -619,7 +623,7 @@ void setup()
   lv_disp_load_scr(ui_Screen5);
 
   show_message("Welcome...");
-  add_dropdown_options(automata.getAutomations().c_str());
+  add_dropdown_options(automataAddOn.getAutomations().c_str());
   // sd_card_list_files("/", 1);
   // lv_example_video_play();
   Serial.println(ESP.getPsramSize());
@@ -660,7 +664,7 @@ int msd = millis();
 void sendMasterAction()
 {
   String id, key;
-  if (automata.getMasterDeviceByName(masterOption.c_str(), id, key))
+  if (automataAddOn.getMasterDeviceByName(masterOption.c_str(), id, key))
   {
     JsonDocument doc;
     doc["screen"] = selectedScreen;
@@ -692,6 +696,7 @@ void loop()
     Serial.println("live data sent");
     drv2605_play_effect(47);
     encoderMoving = false;
+    vTaskDelay(pdMS_TO_TICKS(100));
   }
 
   if (changeDetected || (millis() - start) > 10000)
@@ -722,4 +727,5 @@ void loop()
     Serial.println(actionNum);
     actionSend = false;
   }
+  vTaskDelay(pdMS_TO_TICKS(100));
 }
