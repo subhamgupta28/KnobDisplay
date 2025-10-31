@@ -94,3 +94,23 @@
 // {
 // 	// Your code here
 // }
+
+// void sendActionUpClick(lv_event_t * e)
+// {
+// 	// Your code here
+// }
+
+// void sendActionLeftClick(lv_event_t * e)
+// {
+// 	// Your code here
+// }
+
+// void sendActionRightClick(lv_event_t * e)
+// {
+// 	// Your code here
+// }
+
+// void sendActionDownClick(lv_event_t * e)
+// {
+// 	// Your code here
+// }

@@ -30,6 +30,7 @@ public:
     void begin();
     void loop();
     String getAutomations();
+    void getAutomationsList();
     String getAutomationId(const String &name);
     MasterDataList getMasterDataList();
     bool getMasterDeviceByName(const char *searchName, String &outId, String &outKey);
@@ -38,7 +39,7 @@ public:
 #endif
 
 private:
-    void getAutomationsList();
+    
     void getMasterList();
     void parseJsonList(String jsonData);
     void splitAutomations(const String &input, String &names, String &ids);

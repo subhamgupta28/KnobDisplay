@@ -14,6 +14,7 @@
 #include <time.h>
 #include "lcd/sd_card_bsp.h"
 #include "AutomataAddOn.h"
+#include <HardwareSerial.h>
 
 // const char *HOST = "192.168.29.53";
 // int PORT = 8080;
@@ -21,10 +22,11 @@
 const char *HOST = "raspberry.local";
 int PORT = 8010;
 
-
 Preferences preferences;
 Automata automata("KNOB", HOST, PORT);
 AutomataAddOn automataAddOn(HOST, PORT);
+
+// HardwareSerial SerialPort(1);
 long d = 8000;
 long st = millis();
 unsigned long startMillis;
@@ -46,11 +48,16 @@ int bright = 60;
 #define EXAMPLE_ENCODER_ECB_PIN 7
 unsigned long lastEncoderMove = 0;
 bool encoderMoving = false;
-const unsigned long ENCODER_IDLE_TIMEOUT = 400; // ms
+const unsigned long ENCODER_IDLE_TIMEOUT = 300; // ms
 #define SET_BIT(reg, bit) (reg |= ((uint32_t)0x01 << bit))
 #define CLEAR_BIT(reg, bit) (reg &= (~((uint32_t)0x01 << bit)))
 #define READ_BIT(reg, bit) (((uint32_t)reg >> bit) & 0x01)
 #define BIT_EVEN_ALL (0x00ffffff)
+
+// --- Display power management ---
+unsigned long lastActivity = 0;              // tracks last user action time
+const unsigned long DISPLAY_TIMEOUT = 60000; // 60 seconds idle timeout
+bool displayOn = true;
 
 void action(const Action action)
 {
@@ -83,6 +90,38 @@ static lv_obj_t *clock_meter;
 static lv_meter_indicator_t *hour_hand;
 static lv_meter_indicator_t *minute_hand;
 static lv_meter_indicator_t *second_hand;
+void turnDisplayOff()
+{
+  if (displayOn)
+  {
+    lcd_bl_pwm_bsp_init(0); // backlight off
+    // lv_disp_load_scr(ui_Screen5);
+    displayOn = false;
+    Serial.println("[Display] Turned OFF due to inactivity");
+  }
+}
+
+void turnDisplayOn()
+{
+  if (!displayOn)
+  {
+    lcd_bl_pwm_bsp_init(bright); // restore brightness
+    drv2605_play_effect(47);     // short vibration
+    // lv_disp_load_scr(ui_Screen5);
+    displayOn = true;
+    Serial.println("[Display] Woke up");
+  }
+}
+
+// Call this whenever user interacts (touch or knob)
+void markActivity()
+{
+  lastActivity = millis();
+  if (!displayOn)
+  {
+    turnDisplayOn();
+  }
+}
 
 /* Timer callback to update clock every second */
 static void clock_update_cb(lv_timer_t *timer)
@@ -142,108 +181,7 @@ void lv_example_gif_1(String path)
   lv_gif_set_src(gif, path.c_str());
   // lv_obj_move_foreground(gif);
 }
-#define WEATHER_API_KEY "YOUR_API_KEY"
-#define WEATHER_CITY "Hyderabad"
-#define WEATHER_URL "http://api.openweathermap.org/data/2.5/weather?q=%s&appid=%s&units=metric"
 
-typedef struct
-{
-  char city[64];
-  char description[64];
-  float temperature;
-  float temp_min;
-  float temp_max;
-  int humidity;
-  float wind_speed;
-  int visibility;
-  char icon[8];
-  char date_str[64];
-} WeatherData;
-
-WeatherData currentWeather;
-
-// --- Mock function for fetching weather via API ---
-// Replace with real HTTP GET using your environment
-int fetch_weather_api(const char *city, WeatherData *data)
-{
-  // Example: Hardcoded response (simulate API)
-  strcpy(data->city, "Hyderabad");
-  strcpy(data->description, "Sunny");
-  data->temperature = 29.5;
-  data->temp_min = 28.0;
-  data->temp_max = 31.0;
-  data->humidity = 42;
-  data->wind_speed = 4.2;
-  data->visibility = 5000; // meters
-  strcpy(data->icon, "01d");
-
-  // Add date string
-  time_t t = time(NULL);
-  struct tm *tm_info = localtime(&t);
-  strftime(data->date_str, sizeof(data->date_str), "%A %d %b, %Y", tm_info);
-
-  return 0; // success
-}
-void update_weather_ui(const WeatherData *data)
-{
-  if (!uic_areaname || !uic_datetext)
-    return; // screen not initialized
-
-  // Update city
-  lv_label_set_text(uic_areaname, data->city);
-
-  // Update date
-  lv_label_set_text(uic_datetext, data->date_str);
-
-  // Update temperature
-  char temp_buf[16];
-  snprintf(temp_buf, sizeof(temp_buf), "%.0f°C", data->temperature);
-  lv_label_set_text(uic_temp, temp_buf);
-
-  // Update side info (description, min/max)
-  char side_buf[64];
-  snprintf(side_buf, sizeof(side_buf), "%s\n%.0f / %.0f°C",
-           data->description, data->temp_min, data->temp_max);
-  lv_label_set_text(uic_sidetext, side_buf);
-
-  // Update wind
-  char wind_buf[32];
-  snprintf(wind_buf, sizeof(wind_buf), "Wind\n%.1f km/h", data->wind_speed);
-  lv_label_set_text(uic_wind, wind_buf);
-
-  // Update humidity
-  char hum_buf[32];
-  snprintf(hum_buf, sizeof(hum_buf), "Humidity\n%d%%", data->humidity);
-  lv_label_set_text(uic_humidity, hum_buf);
-
-  // Update visibility
-  char vis_buf[32];
-  snprintf(vis_buf, sizeof(vis_buf), "Visibility\n%.1f km", data->visibility / 1000.0);
-  lv_label_set_text(uic_visibility, vis_buf);
-
-  // Update icon (example, you can map API icon codes to your LVGL images)
-  if (strcmp(data->icon, "01d") == 0)
-  {
-    lv_img_set_src(uic_img, &ui_img_sunny_png);
-  }
-  else
-  {
-    lv_img_set_src(uic_img, &ui_img_winter_png);
-  }
-}
-
-// --- Wrapper function: fetch + update ---
-void show_weather(void)
-{
-  if (fetch_weather_api(WEATHER_CITY, &currentWeather) == 0)
-  {
-    update_weather_ui(&currentWeather);
-  }
-  else
-  {
-    printf("Failed to fetch weather data\n");
-  }
-}
 void sendAction1Click(lv_event_t *e)
 {
   // Your code here
@@ -253,32 +191,32 @@ void sendAction1Click(lv_event_t *e)
 void sendAction2Click(lv_event_t *e)
 {
   // Your code here
-  actionNum = 2;
+  actionNum = 30;
   actionSend = true;
 }
 void sendAction4Click(lv_event_t *e)
 {
-  actionNum = 4;
+  actionNum = 40;
   actionSend = true;
 }
 void sendAction9Click(lv_event_t *e)
 {
-  actionNum = 9;
+  actionNum = 90;
   actionSend = true;
 }
 void sendAction8Click(lv_event_t *e)
 {
-  actionNum = 8;
+  actionNum = 80;
   actionSend = true;
 }
 void sendAction7Click(lv_event_t *e)
 {
-  actionNum = 7;
+  actionNum = 4;
   actionSend = true;
 }
 void sendAction3Click(lv_event_t *e)
 {
-  actionNum = 3;
+  actionNum = 2;
   actionSend = true;
 }
 void sendOptionSelect(lv_event_t *e)
@@ -296,7 +234,6 @@ void sendOptionSelect(lv_event_t *e)
   Serial.println(selected);
   Serial.println(buf);
   selectedAutomation = String(buf);
-  lv_label_set_text(ui_Label26, String(selectedAutomation).c_str());
 }
 void runbtnClick(lv_event_t *e)
 {
@@ -306,16 +243,15 @@ void runbtnClick(lv_event_t *e)
   doc["automation"] = true;
 
   automata.sendAction(doc);
-  lv_label_set_text(ui_Label19, String("Command Sent").c_str());
 }
 void sendAction6Click(lv_event_t *e)
 {
-  actionNum = 6;
+  actionNum = 60;
   actionSend = true;
 }
 void sendAction5Click(lv_event_t *e)
 {
-  actionNum = 5;
+  actionNum = 50;
   actionSend = true;
 }
 void screen1btn_cb(lv_event_t *e)
@@ -379,7 +315,29 @@ static void anim_set_meter_value(void *obj, int32_t v)
 {
   lv_meter_set_indicator_value(meter, needle, v);
 }
+void sendActionUpClick(lv_event_t *e)
+{
+  actionNum = 30;
+  actionSend = true;
+}
 
+void sendActionLeftClick(lv_event_t *e)
+{
+  actionNum = 40;
+  actionSend = true;
+}
+
+void sendActionRightClick(lv_event_t *e)
+{
+  actionNum = 60;
+  actionSend = true;
+}
+
+void sendActionDownClick(lv_event_t *e)
+{
+  actionNum = 80;
+  actionSend = true;
+}
 void add_dropdown_options(const char *new_data)
 {
   // Convert server response (comma-separated) → newline-separated
@@ -393,9 +351,6 @@ void add_dropdown_options(const char *new_data)
       buffer[j++] = new_data[i];
   }
   buffer[j] = '\0';
-
-  // Update dropdown options
-  lv_dropdown_set_options(ui_Dropdown1, buffer);
 }
 
 static void _knob_left_cb(void *arg, void *data)
@@ -415,7 +370,7 @@ static void user_encoder_loop_task(void *arg)
 {
   for (;;)
   {
-    EventBits_t even = xEventGroupWaitBits(knob_even_, BIT_EVEN_ALL, pdTRUE, pdFALSE, pdMS_TO_TICKS(50));
+    EventBits_t even = xEventGroupWaitBits(knob_even_, BIT_EVEN_ALL, pdTRUE, pdFALSE, pdMS_TO_TICKS(20));
 
     if (READ_BIT(even, 0)) // left
     {
@@ -427,7 +382,7 @@ static void user_encoder_loop_task(void *arg)
           encPos = 0;
         changeDetected = true;
         drv2605_play_effect(1);
-
+        markActivity();
         lastEncoderMove = millis();
         encoderMoving = true;
 
@@ -439,6 +394,7 @@ static void user_encoder_loop_task(void *arg)
     {
       if (xSemaphoreTake(mutex, portMAX_DELAY))
       {
+        markActivity();
         encPos += 5;
         if (encPos > 255)
           encPos = 255;
@@ -452,7 +408,7 @@ static void user_encoder_loop_task(void *arg)
       }
     }
 
-    vTaskDelay(100);
+    vTaskDelay(10);
   }
 }
 
@@ -477,18 +433,19 @@ static void example_lvgl_port_task(void *arg)
 
   for (;;)
   {
+
     lv_timer_handler();
 
     if (xSemaphoreTake(mutex, portMAX_DELAY))
     {
 
-      lv_label_set_text(ui_Label25, String(encPos).c_str());
-      lv_arc_set_value(ui_Arc5, encPos);
       lv_arc_set_value(ui_Arc1, encPos);
-      if ((millis() - st) > 60000)
+      lv_label_set_text(uic_arcLabel, String(encPos).c_str());
+      if ((millis() - st) > 120000)
       {
         add_rolloer_data();
-        add_dropdown_options(automataAddOn.getAutomations().c_str());
+        // automataAddOn.getAutomationsList();
+        // add_dropdown_options(automataAddOn.getAutomations().c_str());
         st = millis();
         // Start vibration
       }
@@ -587,7 +544,6 @@ void setup()
     // Vibrate with effect 1 (strong click)
     drv2605_play_effect(47); // Long strong buzz
   }
-  show_weather();
 
   xTaskCreate(example_lvgl_port_task, "LVGL", EXAMPLE_LVGL_TASK_STACK_SIZE, NULL, EXAMPLE_LVGL_TASK_PRIORITY, NULL);
   show_message("Starting...");
@@ -617,8 +573,7 @@ void setup()
 
   iot_knob_register_cb(s_knob, KNOB_LEFT, _knob_left_cb, NULL);
   iot_knob_register_cb(s_knob, KNOB_RIGHT, _knob_right_cb, NULL);
-  xTaskCreate(user_encoder_loop_task, "user_encoder_loop_task", 2048, NULL, 2, NULL);
-
+  xTaskCreate(user_encoder_loop_task, "user_encoder_loop_task", 3000, NULL, 2, NULL);
 
   lv_disp_load_scr(ui_Screen5);
 
@@ -630,6 +585,8 @@ void setup()
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   // lv_example_gif_1("S:/sdcard/loading_anim_h.gif");
   add_rolloer_data();
+  lastActivity = millis();
+  // SerialPort.begin(9600, SERIAL_8N1, ESP32S3_RX, ESP32S3_TX);
 }
 bool alreadySet = false;
 
@@ -688,7 +645,7 @@ void loop()
   float bt = ((analogRead(1) * 2 * 3.3 * 1000) / 4096) / 1000;
 
   doc["battery_volt"] = String(bt, 2);
-  automata.loop();
+  // automata.loop();
 
   if (masterSendLive && encoderMoving && (millis() - lastEncoderMove > ENCODER_IDLE_TIMEOUT))
   {
@@ -696,14 +653,16 @@ void loop()
     Serial.println("live data sent");
     drv2605_play_effect(47);
     encoderMoving = false;
-    vTaskDelay(pdMS_TO_TICKS(100));
+    // vTaskDelay(pdMS_TO_TICKS(100));
   }
 
   if (changeDetected || (millis() - start) > 10000)
   {
 
     automata.sendLive(doc);
-
+    // String json;
+    // serializeJson(doc, json);
+    // SerialPort.println(json);
     // automata.getMasterList();
     updateClock();
     // drv2605_play_effect(1); // Strong click
@@ -727,5 +686,10 @@ void loop()
     Serial.println(actionNum);
     actionSend = false;
   }
-  vTaskDelay(pdMS_TO_TICKS(100));
+  // --- Auto display off logic ---
+  // if (displayOn && (millis() - lastActivity > DISPLAY_TIMEOUT))
+  // {
+  //   turnDisplayOff();
+  // }
+  vTaskDelay(pdMS_TO_TICKS(30));
 }

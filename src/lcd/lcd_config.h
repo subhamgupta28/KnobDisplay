@@ -27,6 +27,12 @@
 #define EXAMPLE_PIN_NUM_TOUCH_SDA 11
 
 
+
+#define ESP32S3_RX 48
+#define ESP32S3_TX 38
+
+// 23 -- 48
+// 18 -- 38
 //#define Backlight_Testing
 //#define EXAMPLE_Rotate_90
 #endif
