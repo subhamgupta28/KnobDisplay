@@ -16,14 +16,14 @@
 #include "AutomataAddOn.h"
 #include <HardwareSerial.h>
 
-// const char *HOST = "192.168.29.53";
-// int PORT = 8080;
+const char *HOST = "automata.realsubhamgupta.in";
+int PORT = 443;
 
-const char *HOST = "raspberry.local";
-int PORT = 8010;
+// const char *HOST = "raspberry.local";
+// int PORT = 8010;
 
 Preferences preferences;
-Automata automata("KNOB", HOST, PORT);
+Automata automata("KNOB","DISPLAY", HOST, PORT, HOST, 1883);
 AutomataAddOn automataAddOn(HOST, PORT);
 
 // HardwareSerial SerialPort(1);
@@ -549,6 +549,8 @@ void setup()
   show_message("Starting...");
   preferences.begin("bat", false);
   automata.begin();
+    automata.useHTTPS();
+  automata.useWSS();
   automata.addAttribute("encoder1", "Encoder 1", "", "DATA|MAIN");
   automata.addAttribute("screen", "Screen", "", "DATA|MAIN");
   automata.addAttribute("action", "Action", "", "ACTION|IN");

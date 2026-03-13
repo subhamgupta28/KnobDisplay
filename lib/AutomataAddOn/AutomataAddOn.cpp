@@ -2,7 +2,7 @@
 
 AutomataAddOn *AutomataAddOn::instance = nullptr;
 
-AutomataAddOn::AutomataAddOn(const char *HOST, int PORT):HOST(HOST), PORT(PORT), server(80)
+AutomataAddOn::AutomataAddOn(const char *HOST, int PORT):HOST(HOST), PORT(PORT), server(80), useHttps(true)
 {
     instance = this;
 }
@@ -81,7 +81,7 @@ void AutomataAddOn::getMasterList()
     serializeJson(req, jsonString);
     String res;
 
-    if (sendHttp(jsonString, "masterList", res))
+    if (sendHttps(jsonString, "masterList", res))
     {
         Serial.println(res);
         parseJsonList(res);
@@ -95,7 +95,7 @@ void AutomataAddOn::getAutomationsList()
     serializeJson(req, jsonString);
     String res;
 
-    if (sendHttp(jsonString, "automations", res))
+    if (sendHttps(jsonString, "automations", res))
     {
         Serial.println(res);
         String names, ids;
@@ -219,4 +219,104 @@ bool AutomataAddOn::sendHttp(const String &output, const String &endpoint, Strin
     http.end();
 
     return false;
+}
+
+bool AutomataAddOn::sendHttps(const String &output, const String &endpoint, String &result)
+{
+    result = "";
+    int httpCode = -1;  // Initialize to error state
+
+    String protocol = useHttps ? "https://" : "http://";
+    String url = protocol + String(HOST) + "/api/v1/main/" + endpoint;
+    Serial.printf("[HTTP] Sending to: %s\n", url.c_str());
+    Serial.printf("[MEM] Free heap before: %u\n", ESP.getFreeHeap());
+    Serial.printf("[WIFI] Connected: %d, IP: %s\n", WiFi.status() == WL_CONNECTED, WiFi.localIP().toString().c_str());
+
+    // Test DNS resolution
+    IPAddress serverIP;
+    if (WiFi.hostByName(HOST, serverIP)) {
+        Serial.printf("[DNS] %s resolved to: %s\n", HOST, serverIP.toString().c_str());
+    } else {
+        Serial.printf("[DNS] Failed to resolve %s\n", HOST);
+        return false;
+    }
+
+    if (useHttps) {
+        WiFiClientSecure client;
+        HTTPClient http;
+
+        client.setInsecure();
+        // client.setHostName(HOST);  // Set SNI for SSL handshake - method may vary by ESP32 core version
+        client.setTimeout(10000);  // 10 second timeout for connection
+
+        Serial.println("[HTTP] Beginning HTTPS connection...");
+        if (!http.begin(client, url))
+        {
+            Serial.println("[HTTP] http.begin() failed");
+            return false;
+        }
+
+        http.addHeader("Content-Type", "application/json");
+        http.setTimeout(15000);  // 15 second timeout for HTTP operations
+        http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+
+        Serial.printf("[HTTP] Sending POST request with payload length: %u\n", output.length());
+        httpCode = http.POST(output);
+        if (httpCode > 0)
+        {
+            result = http.getString();
+            Serial.printf("[HTTP] Code: %d, Result length: %u\n", httpCode, result.length());
+            if (result.length() < 500) {  // Only print short responses
+                Serial.printf("[HTTP] Response: %s\n", result.c_str());
+            } else {
+                Serial.println("[HTTP] Response too long to print");
+            }
+        }
+        else
+        {
+            Serial.printf("[HTTP] POST failed: %s (code: %d)\n", http.errorToString(httpCode).c_str(), httpCode);
+        }
+
+        http.end();
+        client.stop();
+    } else {
+        WiFiClient client;
+        HTTPClient http;
+
+        client.setTimeout(10000);  // 10 second timeout for connection
+
+        Serial.println("[HTTP] Beginning HTTP connection...");
+        if (!http.begin(client, url))
+        {
+            Serial.println("[HTTP] http.begin() failed");
+            return false;
+        }
+
+        http.addHeader("Content-Type", "application/json");
+        http.setTimeout(15000);  // 15 second timeout for HTTP operations
+        http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+
+        Serial.printf("[HTTP] Sending POST request with payload length: %u\n", output.length());
+        httpCode = http.POST(output);
+        if (httpCode > 0)
+        {
+            result = http.getString();
+            Serial.printf("[HTTP] Code: %d, Result length: %u\n", httpCode, result.length());
+            if (result.length() < 500) {  // Only print short responses
+                Serial.printf("[HTTP] Response: %s\n", result.c_str());
+            } else {
+                Serial.println("[HTTP] Response too long to print");
+            }
+        }
+        else
+        {
+            Serial.printf("[HTTP] POST failed: %s (code: %d)\n", http.errorToString(httpCode).c_str(), httpCode);
+        }
+
+        http.end();
+        client.stop();
+    }
+
+    Serial.printf("[MEM] Free heap after: %u\n", ESP.getFreeHeap());
+    return (httpCode >= 200 && httpCode < 300);
 }

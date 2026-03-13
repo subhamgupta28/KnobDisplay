@@ -35,4 +35,5 @@
 // 18 -- 38
 //#define Backlight_Testing
 //#define EXAMPLE_Rotate_90
+#define EXAMPLE_Rotate_180
 #endif

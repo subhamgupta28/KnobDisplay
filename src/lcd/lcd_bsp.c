@@ -199,8 +199,10 @@ static const sh8601_lcd_init_cmd_t lcd_init_cmds[] =
   {0x21, (uint8_t[]){0x00}, 1, 0},
   {0x11, (uint8_t[]){0x00}, 1, 120},
   {0x29, (uint8_t[]){0x00}, 1, 0},
-#ifdef EXAMPLE_Rotate_90
+#if defined(EXAMPLE_Rotate_90)
   {0x36, (uint8_t[]){0x60}, 1, 0},
+#elif defined(EXAMPLE_Rotate_180)
+  {0x36, (uint8_t[]){0xC0}, 1, 0},
 #else
   {0x36, (uint8_t[]){0x00}, 1, 0},
 #endif
@@ -349,9 +351,12 @@ static void example_lvgl_touch_cb(lv_indev_drv_t *drv, lv_indev_data_t *data)
   uint8_t win = getTouch(&tp_x,&tp_y);
   if (win)
   {
-    #ifdef EXAMPLE_Rotate_90
+    #if defined(EXAMPLE_Rotate_90)
       data->point.x = tp_y;
       data->point.y = (EXAMPLE_LCD_V_RES - tp_x);
+    #elif defined(EXAMPLE_Rotate_180)
+      data->point.x = (EXAMPLE_LCD_H_RES - tp_x);
+      data->point.y = (EXAMPLE_LCD_V_RES - tp_y);
     #else
       data->point.x = tp_x;
       data->point.y = tp_y;
