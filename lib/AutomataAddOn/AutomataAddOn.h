@@ -15,7 +15,6 @@
 #include <ArduinoOTA.h>
 #include <vector>
 #include <ESPmDNS.h>
-#include "StompClient.h"
 #include <WebSocketsClient.h>
 #if ENABLE_SD_FILE_SERVER
 #include "SDWebServer.h"

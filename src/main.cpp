@@ -15,16 +15,18 @@
 #include "lcd/sd_card_bsp.h"
 #include "AutomataAddOn.h"
 #include <HardwareSerial.h>
+#include "SDWebServer.h"
 
 const char *HOST = "automata.realsubhamgupta.in";
 int PORT = 443;
-
+const char *MQTT_HOST = "mqtt.realsubhamgupta.in";
 // const char *HOST = "raspberry.local";
 // int PORT = 8010;
 
 Preferences preferences;
-Automata automata("KNOB","DISPLAY", HOST, PORT, HOST, 1883);
+Automata automata("KNOB", "DISPLAY", HOST, PORT, MQTT_HOST, PORT);
 AutomataAddOn automataAddOn(HOST, PORT);
+SDWebServer *sdWebServer;
 
 // HardwareSerial SerialPort(1);
 long d = 8000;
@@ -58,6 +60,8 @@ const unsigned long ENCODER_IDLE_TIMEOUT = 300; // ms
 unsigned long lastActivity = 0;              // tracks last user action time
 const unsigned long DISPLAY_TIMEOUT = 60000; // 60 seconds idle timeout
 bool displayOn = true;
+bool showAnimation = false;
+bool animationActive = false; // tracks current state
 
 void action(const Action action)
 {
@@ -65,6 +69,13 @@ void action(const Action action)
   {
     bright = action.data["bright"];
     lcd_bl_pwm_bsp_init(bright);
+  }
+
+  if (action.data.containsKey("animation"))
+  {
+    bool val = action.data["animation"];
+    showAnimation = val;
+
   }
 
   String jsonString;
@@ -75,12 +86,14 @@ void sendData()
 {
   automata.sendData(doc);
 }
+
 EventGroupHandle_t knob_even_ = NULL;
 int selectedScreen = 1;
 static knob_handle_t s_knob = 0;
 int encPos = 0;
 SemaphoreHandle_t mutex;
 int actionNum = 0;
+String actionVal = "";
 bool actionSend = false;
 String selectedAutomation = "";
 bool changeDetected = false;
@@ -177,7 +190,7 @@ void lv_example_gif_1(String path)
   // lv_obj_center(img);
   gif = lv_gif_create(ui_Screen5);
   lv_obj_center(gif);
-  lv_obj_set_pos(gif, 0, -75);
+  // lv_obj_set_pos(gif, 0, -75);
   lv_gif_set_src(gif, path.c_str());
   // lv_obj_move_foreground(gif);
 }
@@ -188,27 +201,27 @@ void sendAction1Click(lv_event_t *e)
   actionNum = 1;
   actionSend = true;
 }
-void sendAction2Click(lv_event_t *e)
-{
-  // Your code here
-  actionNum = 30;
-  actionSend = true;
-}
-void sendAction4Click(lv_event_t *e)
-{
-  actionNum = 40;
-  actionSend = true;
-}
+// void sendAction2Click(lv_event_t *e)
+// {
+//   // Your code here
+//   actionNum = 30;
+//   actionSend = true;
+// }
+// void sendAction4Click(lv_event_t *e)
+// {
+//   actionNum = 40;
+//   actionSend = true;
+// }
 void sendAction9Click(lv_event_t *e)
 {
-  actionNum = 90;
+  actionNum = 5;
   actionSend = true;
 }
-void sendAction8Click(lv_event_t *e)
-{
-  actionNum = 80;
-  actionSend = true;
-}
+// void sendAction8Click(lv_event_t *e)
+// {
+//   actionNum = 80;
+//   actionSend = true;
+// }
 void sendAction7Click(lv_event_t *e)
 {
   actionNum = 4;
@@ -251,7 +264,8 @@ void sendAction6Click(lv_event_t *e)
 }
 void sendAction5Click(lv_event_t *e)
 {
-  actionNum = 50;
+  actionNum = 0;
+  actionVal = "OK";
   actionSend = true;
 }
 void screen1btn_cb(lv_event_t *e)
@@ -317,25 +331,29 @@ static void anim_set_meter_value(void *obj, int32_t v)
 }
 void sendActionUpClick(lv_event_t *e)
 {
-  actionNum = 30;
+  actionNum = 0;
+  actionVal = "UP";
   actionSend = true;
 }
 
 void sendActionLeftClick(lv_event_t *e)
 {
-  actionNum = 40;
+  actionNum = 0;
+  actionVal = "LEFT";
   actionSend = true;
 }
 
 void sendActionRightClick(lv_event_t *e)
 {
-  actionNum = 60;
+  actionNum = 0;
+  actionVal = "RIGHT";
   actionSend = true;
 }
 
 void sendActionDownClick(lv_event_t *e)
 {
-  actionNum = 80;
+  actionNum = 0;
+  actionVal = "DOWN";
   actionSend = true;
 }
 void add_dropdown_options(const char *new_data)
@@ -441,13 +459,35 @@ static void example_lvgl_port_task(void *arg)
 
       lv_arc_set_value(ui_Arc1, encPos);
       lv_label_set_text(uic_arcLabel, String(encPos).c_str());
-      if ((millis() - st) > 120000)
+      if ((millis() - st) > 60000)
       {
         add_rolloer_data();
         // automataAddOn.getAutomationsList();
         // add_dropdown_options(automataAddOn.getAutomations().c_str());
         st = millis();
         // Start vibration
+      }
+      if (showAnimation && !animationActive)
+      {
+        if (gif == NULL)
+        {
+          lv_example_gif_1("S:/sdcard/loading_anim.gif");
+        }
+        else
+        {
+          lv_obj_clear_flag(gif, LV_OBJ_FLAG_HIDDEN);
+        }
+
+        animationActive = true;
+      }
+      else if (!showAnimation && animationActive)
+      {
+        if (gif != NULL)
+        {
+          lv_obj_add_flag(gif, LV_OBJ_FLAG_HIDDEN);
+        }
+
+        animationActive = false;
       }
       // lv_color_t color = lv_color_make(map(value[2], 0, 100, 0, 255), map(value[1], 0, 100, 0, 255), map(value[3], 0, 100, 0, 255));
       // lv_obj_set_style_bg_color(ui_colorPNL, color, LV_PART_MAIN);
@@ -549,11 +589,14 @@ void setup()
   show_message("Starting...");
   preferences.begin("bat", false);
   automata.begin();
-    automata.useHTTPS();
+  automata.useHTTPS();
   automata.useWSS();
+  sdWebServer = new SDWebServer(automata.getWebserver());
+  sdWebServer->begin();
   automata.addAttribute("encoder1", "Encoder 1", "", "DATA|MAIN");
   automata.addAttribute("screen", "Screen", "", "DATA|MAIN");
   automata.addAttribute("action", "Action", "", "ACTION|IN");
+    automata.addAttribute("animation", "Animation", "", "ACTION|MENU|SWITCH");
   JsonDocument doc;
   doc["max"] = 255;
   doc["min"] = 0;
@@ -680,12 +723,22 @@ void loop()
   if (actionSend)
   {
     JsonDocument doc;
-    doc["action"] = actionNum;
-    doc["key"] = "button";
+    if (actionNum == 0)
+    {
+      doc["action"] = actionVal;
+      Serial.println(actionVal);
+    }
+    else
+    {
+      doc["action"] = actionNum;
+      Serial.println(actionNum);
+    }
+
+    doc["key"] = "action";
     drv2605_play_effect(1);
     automata.sendAction(doc);
     Serial.print("action: ");
-    Serial.println(actionNum);
+
     actionSend = false;
   }
   // --- Auto display off logic ---
